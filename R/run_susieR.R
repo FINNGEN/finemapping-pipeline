@@ -24,6 +24,10 @@ load_R <- function(path, snp) {
   return(R)
 }
 
+susie_get_posterior_mean <- function(res) {
+  colSums(res$alpha * res$mu) / res$X_column_scale_factors
+}
+
 susie_bhat_wrapper <- function(beta, se, R, n, L, var_y = 1.0) {
   fitted_bhat <- susie_bhat(
     bhat = beta,
@@ -45,7 +49,7 @@ susie_bhat_wrapper <- function(beta, se, R, n, L, var_y = 1.0) {
       arrange(variable) %>%
       mutate(
         mean = susie_get_posterior_mean(fitted_bhat),
-        sd = susie_get_posterior_sd(fitted_bhat)
+        sd = susieR:::susie_get_posterior_sd(fitted_bhat)
       )
   cs <- summary(fitted_bhat)$cs
 
