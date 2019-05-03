@@ -11,6 +11,7 @@ task ldstore {
     File bgi = bgen + ".bgi"
     String master = prefix + ".master"
     String n_samples_file = prefix + ".n_samples.txt"
+    String zones
     String docker
     Int cpu
     Int mem
@@ -18,15 +19,12 @@ task ldstore {
     command <<<
 
         wc -l ${incl} | cut -f1 -d' ' > ${n_samples_file}
-        cat ${n_samples_file}
         awk -v n_samples=`cat ${n_samples_file}` '
         BEGIN {
             OFS = ";"
             print "z", "bgen", "bgi", "bcor", "ld", "sample", "incl", "n_samples"
             print "${zfile}", "${bgen}", "${bgi}", "${prefix}.bcor", "${prefix}.ld", "${sample}", "${incl}", n_samples
         }' > ${master}
-
-        cat ${master}
 
         ldstore --in-files ${master} --write-bcor --n-threads ${cpu}
         ldstore --in-files ${master} --bcor-to-text
@@ -50,7 +48,7 @@ task ldstore {
         cpu: "${cpu}"
         memory: "${mem} GB"
         disks: "local-disk 100 HDD"
-        zones: "europe-west1-b"
+        zones: "${zones}"
         preemptible: 2
         noAddress: false
     }
@@ -61,23 +59,22 @@ task finemap {
     Int n_causal_snps
     Float corr_group
     File zfile
-    # File bcor
-    File ld_bgz
+    File bcor
     String prefix = basename(zfile, ".z")
     String master = prefix + ".master"
-    String ld = basename(ld_bgz, ".bgz")
+    String dollar = "$"
+    String zones
     String docker
     Int cpu
     Int mem
 
     command <<<
 
-        zcat ${ld_bgz} > ${ld}
         awk -v n_samples=${n_samples} '
         BEGIN {
             OFS = ";"
-            print "z", "ld", "snp", "config", "cred", "n_samples", "log"
-            print "${zfile}", "${ld}", "${prefix}.snp", "${prefix}.config", "${prefix}.cred", n_samples, "${prefix}.log"
+            print "z", "bcor", "snp", "config", "cred", "n_samples", "log"
+            print "${zfile}", "${bcor}", "${prefix}.snp", "${prefix}.config", "${prefix}.cred", n_samples, "${prefix}.log"
         }' > ${master}
 
         finemap --sss \
@@ -85,7 +82,31 @@ task finemap {
             --log \
             --n-causal-snps ${n_causal_snps} \
             --group-snps \
-            --corr-group ${corr_group}
+            --corr-group ${corr_group} \
+            --n-threads ${cpu}
+
+        # Merge p column
+        cp ${prefix}.snp ${prefix}.snp.temp
+        awk '
+        BEGIN {
+            OFS = " "
+        }
+        NR == 1 {
+            for (i = 1; i <= NF; i++) {
+                col[${dollar}i] = i
+            }
+        }
+        FNR == NR {
+            p[${dollar}col["rsid"]] = ${dollar}col["p"]
+            next
+        }
+        FNR < NR && FNR == 1 {
+            print ${dollar}0, "p"
+        }
+        FNR < NR && FNR > 1 {
+            print ${dollar}0, p[${dollar}1]]
+        }
+        ' > ${zfile} ${prefix}.snp.temp > ${prefix}.snp
 
     >>>
 
@@ -93,7 +114,8 @@ task finemap {
 
         File snp = prefix + ".snp"
         File config = prefix + ".config"
-        File cred = prefix + ".cred"
+        # File cred = prefix + ".cred"
+        Array[File] cred_files = glob(prefix + ".cred*")
         File log = prefix + ".log_sss"
 
     }
@@ -104,7 +126,7 @@ task finemap {
         cpu: "${cpu}"
         memory: "${mem} GB"
         disks: "local-disk 25 HDD"
-        zones: "europe-west1-b"
+        zones: "${zones}"
         preemptible: 2
         noAddress: true
     }
@@ -118,6 +140,7 @@ task susie {
     File zfile
     File ld_bgz
     String prefix = basename(zfile, ".z")
+    String zones
     String docker
     Int cpu
     Int mem
@@ -150,60 +173,215 @@ task susie {
         cpu: "${cpu}"
         memory: "${mem} GB"
         disks: "local-disk 50 HDD"
-        zones: "europe-west1-b"
+        zones: "${zones}"
         preemptible: 2
         noAddress: true
     }
 }
 
-# task combine {
-#     String pheno
-#     Array[File] finemap_config
-#     Array[File] finemap_snp
-#     Array[File] finemap_cred
-#     Array[File] finemap_log
-#     Array[File] susie_snp
-#     Array[File] susie_cred
-#     String docker
-#     Int cpu
-#     Int mem
+task combine {
+    String pheno
+    Int n_causal_snps
+    Array[File] finemap_config
+    Array[File] finemap_snp
+    Array[Array[File]] finemap_cred_files
+    Array[File] finemap_cred = flatten(finemap_cred_files)
+    Array[File] finemap_log
+    Array[File] susie_snp
+    Array[File] susie_cred
+    String dollar = "$"
+    String zones
+    String docker
+    Int cpu
+    Int mem
 
-#     command {
+    command <<<
 
-#         Rscript run_susieR.R \
-#             --z ${zfile} \
-#             --ld ${ld_bgz} \
-#             -n ${n_samples} \
-#             -L ${n_causal_snps} \
-#             --var-y ${var_y} \
-#             --snp ${prefix} + ".susie.snp" \
-#             --cred ${prefix} + ".susie.cred" \
-#             --log ${prefix} + ".susie.log"
+        cat << __EOF__ > combine_snp.awk
+        BEGIN {
+            OFS = "\t"
+        }
+        NR == 1 {
+            for (i = 1; i <= NF; i++) {
+                col[${dollar}i] = i
+            }
+            gsub(" ", "\t")
+            print "trait", "region", "v", ${dollar}0
+        }
+        FNR == 1 {
+            match(FILENAME, "(chr[0-9]+)\\.([0-9]+-[0-9]+)\\.", a)
+            region = a[1]":"a[2]
+        }
+        FNR > 1 {
+            v = sprintf(
+                "%s:%s:%s:%s",
+                int(substr(${dollar}col["chromosome"], 4)),
+                ${dollar}col["position"],
+                ${dollar}col["allele1"],
+                ${dollar}col["allele2"]
+            )
+            gsub(" ", "\t")
+            print ${pheno}, region, v, ${dollar}0
+        }
+        __EOF__
 
-#     }
+        # Combine finemap .snp files
+        awk -f combine_snp.awk ${sep=" " finemap_snp} | sort -V -k3,3 > ${pheno}.FINEMAP.temp.snp
 
-#     output {
+        # Combine finemap .config files
+        awk '
+        BEGIN {
+            OFS = "\t"
+        }
+        NR == 1 {
+            for (i = 1; i <= NF; i++) {
+                col[${dollar}i] = i
+            }
+            gsub(" ", "\t")
+            print "trait", "region", ${dollar}0
+        }
+        FNR == 1 {
+            match(FILENAME, "(chr[0-9]+)\\.([0-9]+-[0-9]+)\\.", a)
+            region = a[1]":"a[2]
+        }
+        FNR > 1 {
+            gsub(" ", "\t")
+            print ${pheno}, region, ${dollar}0
+        }
+        ' ${sep=" " finemap_config} | sort -V -k2,2 | bgzip -c -@ ${cpu} > ${pheno}.FINEMAP.config.bgz
 
-#         File snp = prefix + ".susie.snp"
-#         File cred = prefix + ".susie.cred"
-#         File log = prefix + ".susie.log"
+        # Extract SNPs in finemap .cred files
+        awk '
+        BEGIN {
+            OFS = "\t"
+        }
+        FNR == 1 {
+            n_cols = NF
+            match(FILENAME, "\\.cred([0-9]+)", a)
+            cred = a[1]
+        }
+        FNR > 1 {
+            for (i = 2; i < n_cols; i += 2) {
+                if (${dollar}i != "NA") {
+                    print ${dollar}i, cred, i/2
+                }
+            }
+        }
+        ' ${sep=" " finemap_cred} > ${pheno}.FINEMAP.temp.cred
 
-#     }
+        # Merge with finemap .snp
+        awk '
+        BEGIN {
+            OFS = "\t"
+        }
+        FNR == NR {
+            a[${dollar}1":"${dollar}2] = ${dollar}3
+            next
+        }
+        FNR < NR && FNR == 1 {
+            for (i = 1; i <= NF; i++) {
+                col[${dollar}i] = i
+            }
+            print ${dollar}0, "cs"
+        }
+        FNR < NR && FNR > 1 {
+            for (i = 2; i <= ${n_causal_snps}; i++) {
+                cs_str = cs_str"\t"(${dollar}col["rsid"]":"i in a) ? a[${dollar}col["rsid"]":"i] : "-1"
+            }
+            print ${dollar}0""cs_str
+        }
+        ' ${pheno}.FINEMAP.temp.cred ${pheno}.FINEMAP.temp.snp | bgzip -c -@ ${cpu} > ${pheno}.FINEMAP.snp.bgz
 
-#     runtime {
+        # Extract region statistics from finemap .log_sss files
+        awk '
+        BEGIN {
+            OFS = "\t"
+            pp_str = "prob_1SNP"
+            for (i = 2; i <= ${n_causal_snps}; i++) {
+                pp_str = pp_str"\tprob_"i"SNP"
+            }
+            print "trait", "region", "h2g", "h2g_sd", "h2g_upper95", "h2g_lower95", pp_str, "expectedvalue"
+        }
+        FNR == 1 {
+            match(FILENAME, "(chr[0-9]+)\\.([0-9]+-[0-9]+)\\.", a)
+            region = a[1]":"a[2]
+            regions[region] = region
+        }
+        FNR > 1 && ${dollar}0 ~ /Regional SNP heritability/ {
+            match(${dollar}0, "([0-9\\.]+) \(SD: ([0-9\\.]+) ; 95% CI: \[([0-9\\.]+),([0-9\\.]+)", a)
+            h2g[region] = a[1]"\t"a[2]"\t"a[3]"\t"a[4]
+        }
+        FNR > 1 && ${dollar}0 ~ /Log10-BF of >= one causal SNP/ {
+            match(${dollar}0, ": ([0-9\\.\\-]+)", a)
+            log10bf[region] = a[1]
+        }
+        FNR > 1 && ${dollar}0 ~ /Post-expected # of causal SNPs/ {
+            match(${dollar}0, ": ([0-9\\.\\-]+)", a)
+            exp[region] = a[1]
+        }
+        FNR > 1 && ${dollar}0 ~ /Post-Pr(# of causal SNPs is k)/ {
+            getline
+            for (i = 1; i <= ${n_causal_snps}; i++) {
+                getline
+                match(${dollar}0, "/\\-> ([0-9\\.]+)", a)
+                pp_str = pp_str""a[1]"\t"
+            }
+            pp[region] = pp_str""exp[region]
+        }
+        END {
+            for (region in regions) {
+                print ${pheno}, region, h2g[region], log10bf[region], pp[region]
+            }
+        }
+        ' ${sep=" " finemap_log} | sort -V -k1,1 > bgzip -c -@ ${cpu} > ${pheno}.FINEMAP.region.bgz
 
-#         docker: "${docker}"
-#         cpu: "${cpu}"
-#         memory: "${mem} GB"
-#         disks: "local-disk 25 HDD"
-#         zones: "europe-west1-b"
-#         preemptible: 2
-#         noAddress: true
-#     }
-# }
+        # Combine susie .snp files
+        awk -f combine_snp.awk ${sep=" " susie_snp} | sort -V -k3,3 | bgzip -c -@ ${cpu} > ${pheno}.SUSIE.snp.bgz
+
+        # Combine susie .cred files
+        awk '
+        BEGIN {
+            OFS = "\t"
+        }
+        NR == 1 {
+            print "trait", "region", ${dollar}0
+        }
+        FNR == 1 {
+            match(FILENAME, "(chr[0-9]+)\\.([0-9]+-[0-9]+)\\.", a)
+            region = a[1]":"a[2]
+        }
+        FNR > 1 {
+            print ${pheno}, region, ${dollar}0
+        }
+        ' | sort -V -k2,2 | bgzip -c -@ ${cpu} > ${pheno}.SUSIE.cred.bgz
+
+    >>>
+
+    output {
+
+        File out_finemap_snp = pheno + ".FINEMAP.snp.bgz"
+        File out_finemap_config = pheno + ".FINEMAP.config.bgz"
+        File out_finemap_region = pheno + ".FINEMAP.region.bgz"
+        File out_susie_snp = pheno + ".SUSIE.snp.bgz"
+        File out_susie_cred = pheno + ".SUSIE.cred.bgz"
+
+    }
+
+    runtime {
+
+        docker: "${docker}"
+        cpu: "${cpu}"
+        memory: "${mem} GB"
+        disks: "local-disk 25 HDD"
+        zones: "${zones}"
+        preemptible: 2
+        noAddress: true
+    }
+}
 
 workflow ldstore_finemap {
 
+    String zones
     String docker
     String pheno
     Int n_causal_snps
@@ -212,21 +390,21 @@ workflow ldstore_finemap {
     scatter (zfile in zfiles) {
 
         call ldstore {
-            input: docker=docker, pheno=pheno, zfile=zfile
+            input: zones=zones, docker=docker, pheno=pheno, zfile=zfile
         }
 
         call finemap {
-            input: docker=docker, zfile=zfile, ld_bgz=ldstore.ld_bgz, n_samples=ldstore.n_samples, n_causal_snps=n_causal_snps
+            input: zones=zones, docker=docker, zfile=zfile, bcor=ldstore.bcor, n_samples=ldstore.n_samples, n_causal_snps=n_causal_snps
         }
 
         call susie {
-            input: zfile=zfile, ld_bgz=ldstore.ld_bgz, n_samples=ldstore.n_samples, n_causal_snps=n_causal_snps
+            input: zones=zones, zfile=zfile, ld_bgz=ldstore.ld_bgz, n_samples=ldstore.n_samples, n_causal_snps=n_causal_snps
         }
     }
 
-    # call combine {
-    #     input: docker=docker, pheno=pheno,
-    #         finemap_config=finemap.config, finemap_snp=finemap.snp, finemap_cred=finemap.cred, finemap_log=finemap.log,
-    #         susie_snp=susie.snp, susie_cred=susie.cred
-    # }
+    call combine {
+        input: zones=zones, docker=docker, pheno=pheno, n_causal_snps=n_causal_snps,
+            finemap_config=finemap.config, finemap_snp=finemap.snp, finemap_cred_files=finemap.cred_files, finemap_log=finemap.log,
+            susie_snp=susie.snp, susie_cred=susie.cred
+    }
 }

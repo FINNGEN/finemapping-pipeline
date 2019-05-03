@@ -4,6 +4,7 @@ task preprocess {
     String pheno
     String sumstatsdir
     File sumstats = sumstatsdir + "/" + pheno + ".gz"
+    String zones
     String docker
     Int cpu
     Int mem
@@ -47,14 +48,15 @@ task preprocess {
         cpu: "${cpu}"
         memory: "${mem} GB"
         disks: "local-disk 10 HDD"
-        zones: "europe-west1-b"
+        zones: "${zones}"
         preemptible: 2
-        noAddress: false
+        noAddress: true
     }
 }
 
 workflow finemap {
 
+    String zones
     String docker
     String sumstatsdir
     File phenolistfile
@@ -63,11 +65,11 @@ workflow finemap {
     scatter (pheno in phenos) {
 
         call preprocess {
-            input: docker=docker, pheno=pheno, sumstatsdir=sumstatsdir
+            input: zones=zones, docker=docker, pheno=pheno, sumstatsdir=sumstatsdir
         }
 
         call sub.ldstore_finemap {
-            input: docker=docker, pheno=pheno, zfiles=preprocess.zfiles
+            input: zones=zones, docker=docker, pheno=pheno, zfiles=preprocess.zfiles
         }
     }
 }

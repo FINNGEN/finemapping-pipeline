@@ -29,7 +29,7 @@ HG19_CHROMOSOME_SIZES = pd.DataFrame.from_dict(pybedtools.chromsizes('hg19'), or
 HG19_CHROMOSOME_SIZES['chromosome'] = range(1, 23)
 HG19_CHROMOSOME_SIZES = HG19_CHROMOSOME_SIZES[['chromosome', 'start', 'end']]
 
-FINEMAP_COLUMNS = ['rsid', 'chromosome', 'position', 'allele1', 'allele2', 'maf', 'beta', 'se', 'flip']
+FINEMAP_COLUMNS = ['rsid', 'chromosome', 'position', 'allele1', 'allele2', 'maf', 'beta', 'se', 'p']
 
 
 def convert_chrpos(chromosome, position):
@@ -501,8 +501,10 @@ if __name__ == '__main__':
         args.prefix = map(
             lambda x: os.path.splitext(os.path.basename(x if not x.endswith('gz') else os.path.splitext(x)[0]))[0],
             args.sumstats)
-    args.gsdir = map(lambda x: x + '/' if not x.endswith('/') else x, args.gsdir)
-    args.localdir = map(lambda x: x + '/' if not x.endswith('/') else x, args.localdir)
+    if args.gsdir is not None:
+        args.gsdir = map(lambda x: x + '/' if not x.endswith('/') else x, args.gsdir)
+    if args.localdir is not None:
+        args.localdir = map(lambda x: x + '/' if not x.endswith('/') else x, args.localdir)
 
     if args.bed is not None and not isinstance(args.bed, list):
         args.bed = [args.bed] * n_sumstats
