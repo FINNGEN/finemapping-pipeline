@@ -16,5 +16,5 @@
     "finemap.ldstore_finemap.susie.var_y": 1.0,
     "finemap.ldstore_finemap.susie.docker": "eu.gcr.io/finngen-refinery-dev/susie:0.8.0",
     "finemap.ldstore_finemap.susie.cpu": 1,
-    "finemap.ldstore_finemap.susie.mem": 26
+    "finemap.ldstore_finemap.susie.mem": 52
 }

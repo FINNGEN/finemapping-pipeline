@@ -49,7 +49,7 @@ task ldstore {
         docker: "${docker}"
         cpu: "${cpu}"
         memory: "${mem} GB"
-        disks: "local-disk 50 HDD"
+        disks: "local-disk 100 HDD"
         zones: "europe-west1-b"
         preemptible: 2
         noAddress: false
@@ -149,7 +149,7 @@ task susie {
         docker: "${docker}"
         cpu: "${cpu}"
         memory: "${mem} GB"
-        disks: "local-disk 25 HDD"
+        disks: "local-disk 50 HDD"
         zones: "europe-west1-b"
         preemptible: 2
         noAddress: true
