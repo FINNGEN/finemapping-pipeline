@@ -59,8 +59,10 @@ task finemap {
     Int n_causal_snps
     Float corr_group
     File zfile
-    File bcor
+    # File bcor
     String prefix = basename(zfile, ".z")
+    File ld_bgz
+    String ld = prefix + '.ld'
     String master = prefix + ".master"
     String dollar = "$"
     String zones
@@ -70,11 +72,13 @@ task finemap {
 
     command <<<
 
+        zcat ${ld_bgz} > ${ld}
+
         awk -v n_samples=${n_samples} '
         BEGIN {
             OFS = ";"
-            print "z", "bcor", "snp", "config", "cred", "n_samples", "log"
-            print "${zfile}", "${bcor}", "${prefix}.snp", "${prefix}.config", "${prefix}.cred", n_samples, "${prefix}.log"
+            print "z", "ld", "snp", "config", "cred", "n_samples", "log"
+            print "${zfile}", "${ld}", "${prefix}.snp", "${prefix}.config", "${prefix}.cred", n_samples, "${prefix}.log"
         }' > ${master}
 
         finemap --sss \
@@ -104,9 +108,9 @@ task finemap {
             print ${dollar}0, "p"
         }
         FNR < NR && FNR > 1 {
-            print ${dollar}0, p[${dollar}1]]
+            print ${dollar}0, p[${dollar}2]
         }
-        ' > ${zfile} ${prefix}.snp.temp > ${prefix}.snp
+        ' ${zfile} ${prefix}.snp.temp > ${prefix}.snp
 
     >>>
 
@@ -197,7 +201,7 @@ task combine {
 
     command <<<
 
-        cat << __EOF__ > combine_snp.awk
+        cat << "__EOF__" > combine_snp.awk
         BEGIN {
             OFS = "\t"
         }
@@ -209,27 +213,27 @@ task combine {
             print "trait", "region", "v", ${dollar}0
         }
         FNR == 1 {
-            match(FILENAME, "(chr[0-9]+)\\.([0-9]+-[0-9]+)\\.", a)
+            match(FILENAME, /(chr[0-9]+)\.([0-9]+-[0-9]+)\./, a)
             region = a[1]":"a[2]
         }
         FNR > 1 {
-            v = sprintf(
-                "%s:%s:%s:%s",
-                int(substr(${dollar}col["chromosome"], 4)),
-                ${dollar}col["position"],
-                ${dollar}col["allele1"],
-                ${dollar}col["allele2"]
+            v = sprintf( \
+                "%s:%s:%s:%s", \
+                int(substr(${dollar}col["chromosome"], 4)), \
+                ${dollar}col["position"], \
+                ${dollar}col["allele1"], \
+                ${dollar}col["allele2"] \
             )
             gsub(" ", "\t")
-            print ${pheno}, region, v, ${dollar}0
+            print pheno, region, v, ${dollar}0
         }
         __EOF__
 
         # Combine finemap .snp files
-        awk -f combine_snp.awk ${sep=" " finemap_snp} | sort -V -k3,3 > ${pheno}.FINEMAP.temp.snp
+        awk -f combine_snp.awk -v pheno=${pheno} ${sep=" " finemap_snp} > ${pheno}.FINEMAP.temp.snp
 
         # Combine finemap .config files
-        awk '
+        awk -v pheno=${pheno} '
         BEGIN {
             OFS = "\t"
         }
@@ -241,26 +245,26 @@ task combine {
             print "trait", "region", ${dollar}0
         }
         FNR == 1 {
-            match(FILENAME, "(chr[0-9]+)\\.([0-9]+-[0-9]+)\\.", a)
+            match(FILENAME, /(chr[0-9]+)\.([0-9]+-[0-9]+)\./, a)
             region = a[1]":"a[2]
         }
         FNR > 1 {
             gsub(" ", "\t")
-            print ${pheno}, region, ${dollar}0
+            print pheno, region, ${dollar}0
         }
-        ' ${sep=" " finemap_config} | sort -V -k2,2 | bgzip -c -@ ${cpu} > ${pheno}.FINEMAP.config.bgz
+        ' ${sep=" " finemap_config} | bgzip -c -@ ${cpu} > ${pheno}.FINEMAP.config.bgz
 
         # Extract SNPs in finemap .cred files
         awk '
         BEGIN {
             OFS = "\t"
         }
-        FNR == 1 {
+        FNR == 2 {
             n_cols = NF
             match(FILENAME, "\\.cred([0-9]+)", a)
             cred = a[1]
         }
-        FNR > 1 {
+        FNR >= 4 {
             for (i = 2; i < n_cols; i += 2) {
                 if (${dollar}i != "NA") {
                     print ${dollar}i, cred, i/2
@@ -282,64 +286,70 @@ task combine {
             for (i = 1; i <= NF; i++) {
                 col[${dollar}i] = i
             }
-            print ${dollar}0, "cs"
+            cs_str = "cs"
+            for (i = 2; i <= ${n_causal_snps}; i++) {
+                cs_str = cs_str"\tcs"i
+            }
+            print ${dollar}0, cs_str
         }
         FNR < NR && FNR > 1 {
-            for (i = 2; i <= ${n_causal_snps}; i++) {
-                cs_str = cs_str"\t"(${dollar}col["rsid"]":"i in a) ? a[${dollar}col["rsid"]":"i] : "-1"
+            cs_str = ""
+            for (i = 1; i <= ${n_causal_snps}; i++) {
+                cs_str = cs_str"\t"((${dollar}col["rsid"]":"i in a) ? a[${dollar}col["rsid"]":"i] : "-1")
             }
             print ${dollar}0""cs_str
         }
         ' ${pheno}.FINEMAP.temp.cred ${pheno}.FINEMAP.temp.snp | bgzip -c -@ ${cpu} > ${pheno}.FINEMAP.snp.bgz
 
         # Extract region statistics from finemap .log_sss files
-        awk '
+        awk -v pheno=${pheno} '
         BEGIN {
             OFS = "\t"
             pp_str = "prob_1SNP"
             for (i = 2; i <= ${n_causal_snps}; i++) {
                 pp_str = pp_str"\tprob_"i"SNP"
             }
-            print "trait", "region", "h2g", "h2g_sd", "h2g_upper95", "h2g_lower95", pp_str, "expectedvalue"
+            print "trait", "region", "h2g", "h2g_sd", "h2g_lower95", "h2g_upper95", "log10bf", pp_str, "expectedvalue"
         }
         FNR == 1 {
-            match(FILENAME, "(chr[0-9]+)\\.([0-9]+-[0-9]+)\\.", a)
+            match(FILENAME, /(chr[0-9]+)\.([0-9]+-[0-9]+)\./, a)
             region = a[1]":"a[2]
             regions[region] = region
         }
         FNR > 1 && ${dollar}0 ~ /Regional SNP heritability/ {
-            match(${dollar}0, "([0-9\\.]+) \(SD: ([0-9\\.]+) ; 95% CI: \[([0-9\\.]+),([0-9\\.]+)", a)
+            match(${dollar}0, /([0-9\.]+) \(SD: ([0-9\.]+) ; 95% CI: \[([0-9\.]+),([0-9\.]+)/, a)
             h2g[region] = a[1]"\t"a[2]"\t"a[3]"\t"a[4]
         }
         FNR > 1 && ${dollar}0 ~ /Log10-BF of >= one causal SNP/ {
-            match(${dollar}0, ": ([0-9\\.\\-]+)", a)
+            match(${dollar}0, /: ([0-9\.\-]+)/, a)
             log10bf[region] = a[1]
         }
         FNR > 1 && ${dollar}0 ~ /Post-expected # of causal SNPs/ {
-            match(${dollar}0, ": ([0-9\\.\\-]+)", a)
-            exp[region] = a[1]
+            match(${dollar}0, /: ([0-9\.\-]+)/, a)
+            n_exp[region] = a[1]
         }
-        FNR > 1 && ${dollar}0 ~ /Post-Pr(# of causal SNPs is k)/ {
+        FNR > 1 && ${dollar}0 ~ /Post-Pr\(# of causal SNPs is k\)/ {
             getline
+            pp_str=""
             for (i = 1; i <= ${n_causal_snps}; i++) {
                 getline
-                match(${dollar}0, "/\\-> ([0-9\\.]+)", a)
+                match(${dollar}0, /-> ([0-9\.]+)/, a)
                 pp_str = pp_str""a[1]"\t"
             }
-            pp[region] = pp_str""exp[region]
+            pp[region] = pp_str""n_exp[region]
         }
         END {
             for (region in regions) {
-                print ${pheno}, region, h2g[region], log10bf[region], pp[region]
+                print pheno, region, h2g[region], log10bf[region], pp[region]
             }
         }
-        ' ${sep=" " finemap_log} | sort -V -k1,1 > bgzip -c -@ ${cpu} > ${pheno}.FINEMAP.region.bgz
+        ' ${sep=" " finemap_log} | bgzip -c -@ ${cpu} > ${pheno}.FINEMAP.region.bgz
 
         # Combine susie .snp files
-        awk -f combine_snp.awk ${sep=" " susie_snp} | sort -V -k3,3 | bgzip -c -@ ${cpu} > ${pheno}.SUSIE.snp.bgz
+        awk -f combine_snp.awk -v pheno=${pheno} ${sep=" " susie_snp} | bgzip -c -@ ${cpu} > ${pheno}.SUSIE.snp.bgz
 
         # Combine susie .cred files
-        awk '
+        awk -v pheno=${pheno} '
         BEGIN {
             OFS = "\t"
         }
@@ -347,13 +357,13 @@ task combine {
             print "trait", "region", ${dollar}0
         }
         FNR == 1 {
-            match(FILENAME, "(chr[0-9]+)\\.([0-9]+-[0-9]+)\\.", a)
+            match(FILENAME, /(chr[0-9]+)\.([0-9]+-[0-9]+)\./, a)
             region = a[1]":"a[2]
         }
         FNR > 1 {
-            print ${pheno}, region, ${dollar}0
+            print pheno, region, ${dollar}0
         }
-        ' | sort -V -k2,2 | bgzip -c -@ ${cpu} > ${pheno}.SUSIE.cred.bgz
+        ' ${sep=" " susie_cred} | bgzip -c -@ ${cpu} > ${pheno}.SUSIE.cred.bgz
 
     >>>
 
@@ -394,7 +404,7 @@ workflow ldstore_finemap {
         }
 
         call finemap {
-            input: zones=zones, docker=docker, zfile=zfile, bcor=ldstore.bcor, n_samples=ldstore.n_samples, n_causal_snps=n_causal_snps
+            input: zones=zones, docker=docker, zfile=zfile, ld_bgz=ldstore.ld_bgz, n_samples=ldstore.n_samples, n_causal_snps=n_causal_snps
         }
 
         call susie {
