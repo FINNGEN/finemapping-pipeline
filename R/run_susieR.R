@@ -70,7 +70,11 @@ main <- function(args) {
     R <- load_R(args$ld, df$rsid)
     res <- susie_bhat_wrapper(df$beta, df$se, R, n, L, var_y)
     variables <- cbind(df, res$variables[c("mean", "sd", "prob", "cs")])
-    cs <- res$cs %>% select(-variable)
+    cs <- res$cs
+    if (!is.null(cs)) {
+      cs <- cs %>% select(-variable)
+    }
+
     write.table(variables, args$snp, sep = "\t", row.names = F, quote = F)
     write.table(cs, args$cred, sep = "\t", row.names = F, quote = F)
   } else {

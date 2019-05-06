@@ -47,7 +47,7 @@ task preprocess {
         docker: "${docker}"
         cpu: "${cpu}"
         memory: "${mem} GB"
-        disks: "local-disk 10 HDD"
+        disks: "local-disk 20 HDD"
         zones: "${zones}"
         preemptible: 2
         noAddress: true

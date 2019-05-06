@@ -129,7 +129,7 @@ task finemap {
         docker: "${docker}"
         cpu: "${cpu}"
         memory: "${mem} GB"
-        disks: "local-disk 25 HDD"
+        disks: "local-disk 100 HDD"
         zones: "${zones}"
         preemptible: 2
         noAddress: true
@@ -382,7 +382,7 @@ task combine {
         docker: "${docker}"
         cpu: "${cpu}"
         memory: "${mem} GB"
-        disks: "local-disk 25 HDD"
+        disks: "local-disk 30 HDD"
         zones: "${zones}"
         preemptible: 2
         noAddress: true
