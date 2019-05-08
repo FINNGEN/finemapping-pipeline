@@ -19,11 +19,17 @@ RUN wget https://github.com/samtools/htslib/releases/download/${HTSLIB_VERSION}/
     rm -r ~/htslib-${HTSLIB_VERSION}*
 
 # LDSTORE
-ENV LDSTORE_VERSION v2.0b
+# finemap-suite:0.1 -- v2.0b (on the private website)
+# finemap-suite:0.3 -- v2.0b_0504
+# finemap-suite:0.4 -- v2.0b_0508
+ENV LDSTORE_VERSION v2.0b_0508
 ADD ./docker/finemap-suite/ldstore_${LDSTORE_VERSION}_x86_64 /usr/bin/ldstore
 
 # FINEMAP
-ENV FINEMAP_VERSION v1.4
+# finemap-suite:0.1 -- v1.3.1 (on the website)
+# finemap-suite:0.2 -- v1.4_0503
+# finemap-suite:0.4 -- v1.4_0508
+ENV FINEMAP_VERSION v1.4_0508
 ADD ./docker/finemap-suite/finemap_${FINEMAP_VERSION}_x86_64 /usr/bin/finemap
 # RUN wget --quiet http://www.christianbenner.com/finemap_${FINEMAP_VERSION}_x86_64.tgz -P ~ && \
 #     tar xf ~/finemap_${FINEMAP_VERSION}_x86_64.tgz -C ~ && \
