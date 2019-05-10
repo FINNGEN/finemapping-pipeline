@@ -59,9 +59,9 @@ task finemap {
     Int n_causal_snps
     Float corr_group
     File zfile
-    # File bcor
+    File bcor
     String prefix = basename(zfile, ".z")
-    File ld_bgz
+    # File ld_bgz
     String ld = prefix + '.ld'
     String master = prefix + ".master"
     String dollar = "$"
@@ -72,13 +72,11 @@ task finemap {
 
     command <<<
 
-        zcat ${ld_bgz} > ${ld}
-
         awk -v n_samples=${n_samples} '
         BEGIN {
             OFS = ";"
-            print "z", "ld", "snp", "config", "cred", "n_samples", "log"
-            print "${zfile}", "${ld}", "${prefix}.snp", "${prefix}.config", "${prefix}.cred", n_samples, "${prefix}.log"
+            print "z", "bcor", "snp", "config", "cred", "n_samples", "log"
+            print "${zfile}", "${bcor}", "${prefix}.snp", "${prefix}.config", "${prefix}.cred", n_samples, "${prefix}.log"
         }' > ${master}
 
         finemap --sss \
@@ -404,7 +402,7 @@ workflow ldstore_finemap {
         }
 
         call finemap {
-            input: zones=zones, docker=docker, zfile=zfile, ld_bgz=ldstore.ld_bgz, n_samples=ldstore.n_samples, n_causal_snps=n_causal_snps
+            input: zones=zones, docker=docker, zfile=zfile, bcor=ldstore.bcor, n_samples=ldstore.n_samples, n_causal_snps=n_causal_snps
         }
 
         call susie {
