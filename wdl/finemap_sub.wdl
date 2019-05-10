@@ -61,7 +61,6 @@ task finemap {
     File zfile
     File bcor
     String prefix = basename(zfile, ".z")
-    # File ld_bgz
     String ld = prefix + '.ld'
     String master = prefix + ".master"
     String dollar = "$"
@@ -83,8 +82,6 @@ task finemap {
             --in-files ${master} \
             --log \
             --n-causal-snps ${n_causal_snps} \
-            --group-snps \
-            --corr-group ${corr_group} \
             --n-threads ${cpu}
 
         # Merge p column
