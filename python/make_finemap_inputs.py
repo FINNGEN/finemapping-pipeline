@@ -25,10 +25,6 @@ logger.addHandler(handler)
 logger.propagate = False
 
 CHROM_CONSTANT = int(1e11)
-HG19_CHROMOSOME_SIZES = pd.DataFrame.from_dict(pybedtools.chromsizes('hg19'), orient='index', columns=['start', 'end']).iloc[:22, :]
-HG19_CHROMOSOME_SIZES['chromosome'] = range(1, 23)
-HG19_CHROMOSOME_SIZES = HG19_CHROMOSOME_SIZES[['chromosome', 'start', 'end']]
-
 FINEMAP_COLUMNS = ['rsid', 'chromosome', 'position', 'allele1', 'allele2', 'maf', 'beta', 'se', 'p']
 
 
@@ -365,12 +361,13 @@ def main(args):
         merged_bed = BedTool.from_dataframe(bed).merge()
     logger.info(merged_bed)
 
-    # bed = map(lambda x: generate_bed(x[x.p < args.p_theshold], args.window), sumstats)
-    # unique_chroms = pd.concat(map(lambda x: x.chromosome, sumstats)).unique()
-    # merged_bed = reduce(lambda x, y: x.cat(y, postmerge=True), bed)
+    build = 'hg19' if not args.grch38 else 'hg38'
+    chromsizes = pd.DataFrame.from_dict(pybedtools.chromsizes(build), orient='index', columns=['start', 'end']).loc[['chr' + str(i) for i in range(1, 23)], :]
+    chromsizes['chromosome'] = range(1, 23)
+    chromsizes = chromsizes[['chromosome', 'start', 'end']]
 
     unique_chroms = merged_bed.to_dataframe().iloc[0, :].unique()
-    all_bed = BedTool.from_dataframe(HG19_CHROMOSOME_SIZES[HG19_CHROMOSOME_SIZES.chromosome.isin(unique_chroms)])
+    all_bed = BedTool.from_dataframe(chromsizes[chromsizes.chromosome.isin(unique_chroms)])
     all_bed = all_bed.subtract(merged_bed).cat(
         merged_bed, postmerge=False).to_dataframe().sort_values(['chrom', 'start'])
     logger.info(all_bed)
