@@ -23,6 +23,7 @@ task preprocess {
             --se-col "SE" \
             --p-col "p.value" \
             --grch38 \
+            --exclude-MHC \
             --no-upload \
             --gsdir '' \
             --localdir '' \

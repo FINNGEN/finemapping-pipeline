@@ -5,6 +5,7 @@ options(stringsAsFactors = F)
 library(argparse)
 library(data.table)
 library(dplyr)
+library(stringr)
 library(susieR)
 
 load_R <- function(path, snp) {
@@ -72,7 +73,7 @@ main <- function(args) {
     variables <- cbind(df, res$variables[c("mean", "sd", "prob", "cs")])
     cs <- res$cs
     if (!is.null(cs)) {
-      cs <- cs %>% select(-variable)
+      cs <- cs %>% mutate(cs_size = length(str_split(variable, ",")[[1]])) %>% select(-variable)
     }
 
     write.table(variables, args$snp, sep = "\t", row.names = F, quote = F)

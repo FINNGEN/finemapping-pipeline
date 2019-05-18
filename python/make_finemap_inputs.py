@@ -50,6 +50,7 @@ def read_sumstats(path,
                   p_col='p',
                   recontig=False,
                   set_rsid=False,
+                  flip_beta=False,
                   grch38=False):
     logger.info("Loading sumstats: " + path)
 
@@ -104,24 +105,37 @@ def read_sumstats(path,
         sumstats = sumstats.rename(index=str, columns={flip_col: 'flip'})
     else:
         sumstats['flip'] = 0
+    if flip_beta:
+        sumstats['beta'] = -sumstats.beta
 
     if p_col not in sumstats.columns:
         # assume standard linear regression
         sumstats['p'] = 2 * sp.stats.norm.sf(np.abs(sumstats.beta / sumstats.se))
     elif p_col != 'p':
         sumstats = sumstats.rename(index=str, columns={p_col: 'p'})
-    sumstats = sumstats.dropna(subset=['p'])
+    sumstats = sumstats.dropna(subset=['beta', 'se', 'p'])
     return sumstats
 
 
-def generate_bed(sumstats, p_threshold=5e-8, window=0):
+def generate_bed(sumstats, p_threshold=5e-8, window=0, grch38=False, exclude_MHC=False, MHC_start=25e6, MHC_end=34e6):
     df = pd.concat(map(lambda x: x[x.p < p_threshold], sumstats)).sort_values('p')
     bed = []
     lead_snps = []
+
+    build = 'hg19' if not grch38 else 'hg38'
+
+    # exclude significant SNPs in the MHC region
+    MHC_idx = (df.chromosome == '6') & (df.position >= MHC_start) & (df.position <= MHC_end)
+    if exclude_MHC and np.sum(MHC_idx) > 0:
+        logger.warning('{} significant SNPs excluded due to --exclude-MHC'.format(np.sum(MHC_idx)))
+        df = df.loc[~MHC_idx, :]
+    if len(df.index) == 0:
+        raise RuntimeError('No signifcant SNPs found.')
+
     while len(df.index) > 0:
         lead_snp = df.iloc[0, :]
         chrom, start, end = lead_snp.chromosome, lead_snp.position - window, lead_snp.position + window
-        chr_start, chr_end = pybedtools.chromsizes('hg19')['chr' + str(int(chrom))]
+        chr_start, chr_end = pybedtools.chromsizes(build)['chr' + str(int(chrom))]
         if start < chr_start:
             start = chr_start
         if end > chr_end:
@@ -331,12 +345,14 @@ def main(args):
             p_col=args.p_col[i],
             recontig=args.recontig[i],
             set_rsid=args.set_rsid[i],
+            flip_beta=args.flip_beta[i],
             grch38=args.grch38[i]
         ), enumerate(args.sumstats))
 
     if args.bed is None:
         logger.info('Generating bed')
-        merged_bed, lead_snps = generate_bed(sumstats, args.p_threshold, args.window)
+        merged_bed, lead_snps = generate_bed(sumstats, args.p_threshold, args.window, args.grch38,
+                                             args.exclude_MHC, args.MHC_start, args.MHC_end)
         lead_snps.to_csv(args.out + '.lead_snps.txt', sep='\t', index=False)
     else:
         i = 0
@@ -420,6 +436,9 @@ if __name__ == '__main__':
     parser.add_argument('--no-output', action='store_true')
     parser.add_argument('--no-ldstore', action='store_true')
     parser.add_argument('--submit-jobs', action='store_true')
+    parser.add_argument('--exclude-MHC', action='store_true')
+    parser.add_argument('--MHC-start', type=int, default=25e6)
+    parser.add_argument('--MHC-end', type=int, default=34e6)
 
     # sumstats settings
     parser.add_argument('--json', type=str, nargs='+')
@@ -439,11 +458,12 @@ if __name__ == '__main__':
     parser.add_argument('--p-col', '-p', type=str, default='p')
     parser.add_argument('--recontig', action='store_true', default=False)
     parser.add_argument('--set-rsid', action='store_true', default=False)
+    parser.add_argument('--flip-beta', action='store_true', default=False)
     parser.add_argument('--grch38', action='store_true', default=False)
 
     JSON_PARAMS = [
         'rsid_col', 'chromosome_col', 'position_col', 'allele1_col', 'allele2_col', 'maf_col', 'freq_col', 'beta_col',
-        'se_col', 'flip_col', 'p_col', 'recontig', 'set_rsid', 'grch38',
+        'se_col', 'flip_col', 'p_col', 'recontig', 'set_rsid', 'flip_beta', 'grch38',
         'project', 'regions', 'bgen_bucket', 'bgen_dirname', 'bgen_fname_format'
     ]
 

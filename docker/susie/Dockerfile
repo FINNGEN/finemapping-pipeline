@@ -38,7 +38,7 @@ RUN apt-get update --fix-missing && \
 # dev version: 0.8.1.0521
 ENV SUSIE_VERSION e81a5ca
 RUN pip install --no-cache numpy pandas && \
-    Rscript -e 'install.packages(c("devtools", "argparse", "reticulate", "dplyr", "data.table", "here", "R.utils"), noCache = TRUE, repos="https://cloud.r-project.org")' && \
+    Rscript -e 'install.packages(c("devtools", "argparse", "reticulate", "dplyr", "stringr", "data.table", "here", "R.utils"), noCache = TRUE, repos="https://cloud.r-project.org")' && \
     Rscript -e "Sys.setenv(TAR = \"/bin/tar\"); devtools::install_github(\"stephenslab/susieR@${SUSIE_VERSION}\")"
 
 # Add scripts

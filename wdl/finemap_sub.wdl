@@ -63,7 +63,6 @@ task finemap {
     String prefix = basename(zfile, ".z")
     String ld = prefix + '.ld'
     String master = prefix + ".master"
-    String dollar = "$"
     String zones
     String docker
     Int cpu
@@ -92,18 +91,18 @@ task finemap {
         }
         NR == 1 {
             for (i = 1; i <= NF; i++) {
-                col[${dollar}i] = i
+                col[$i] = i
             }
         }
         FNR == NR {
-            p[${dollar}col["rsid"]] = ${dollar}col["p"]
+            p[$col["rsid"]] = $col["p"]
             next
         }
         FNR < NR && FNR == 1 {
-            print ${dollar}0, "p"
+            print $0, "p"
         }
         FNR < NR && FNR > 1 {
-            print ${dollar}0, p[${dollar}2]
+            print $0, p[$2]
         }
         ' ${zfile} ${prefix}.snp.temp > ${prefix}.snp
 
@@ -188,7 +187,6 @@ task combine {
     Array[File] finemap_log
     Array[File] susie_snp
     Array[File] susie_cred
-    String dollar = "$"
     String zones
     String docker
     Int cpu
@@ -202,10 +200,10 @@ task combine {
         }
         NR == 1 {
             for (i = 1; i <= NF; i++) {
-                col[${dollar}i] = i
+                col[$i] = i
             }
             gsub(" ", "\t")
-            print "trait", "region", "v", ${dollar}0
+            print "trait", "region", "v", $0
         }
         FNR == 1 {
             match(FILENAME, /(chr[0-9]+)\.([0-9]+-[0-9]+)\./, a)
@@ -214,13 +212,13 @@ task combine {
         FNR > 1 {
             v = sprintf( \
                 "%s:%s:%s:%s", \
-                int(substr(${dollar}col["chromosome"], 4)), \
-                ${dollar}col["position"], \
-                ${dollar}col["allele1"], \
-                ${dollar}col["allele2"] \
+                int(substr($col["chromosome"], 4)), \
+                $col["position"], \
+                $col["allele1"], \
+                $col["allele2"] \
             )
             gsub(" ", "\t")
-            print pheno, region, v, ${dollar}0
+            print pheno, region, v, $0 | "sort -V -k2,3"
         }
         __EOF__
 
@@ -234,10 +232,10 @@ task combine {
         }
         NR == 1 {
             for (i = 1; i <= NF; i++) {
-                col[${dollar}i] = i
+                col[$i] = i
             }
             gsub(" ", "\t")
-            print "trait", "region", ${dollar}0
+            print "trait", "region", $0
         }
         FNR == 1 {
             match(FILENAME, /(chr[0-9]+)\.([0-9]+-[0-9]+)\./, a)
@@ -245,7 +243,7 @@ task combine {
         }
         FNR > 1 {
             gsub(" ", "\t")
-            print pheno, region, ${dollar}0
+            print pheno, region, $0 | "sort -V -k2,3"
         }
         ' ${sep=" " finemap_config} | bgzip -c -@ ${cpu} > ${pheno}.FINEMAP.config.bgz
 
@@ -261,8 +259,8 @@ task combine {
         }
         FNR >= 4 {
             for (i = 2; i < n_cols; i += 2) {
-                if (${dollar}i != "NA") {
-                    print ${dollar}i, cred, i/2
+                if ($i != "NA") {
+                    print $i, cred, i/2
                 }
             }
         }
@@ -274,25 +272,25 @@ task combine {
             OFS = "\t"
         }
         FNR == NR {
-            a[${dollar}1":"${dollar}2] = ${dollar}3
+            a[$1":"$2] = $3
             next
         }
         FNR < NR && FNR == 1 {
             for (i = 1; i <= NF; i++) {
-                col[${dollar}i] = i
+                col[$i] = i
             }
             cs_str = "cs"
             for (i = 2; i <= ${n_causal_snps}; i++) {
                 cs_str = cs_str"\tcs"i
             }
-            print ${dollar}0, cs_str
+            print $0, cs_str
         }
         FNR < NR && FNR > 1 {
             cs_str = ""
             for (i = 1; i <= ${n_causal_snps}; i++) {
-                cs_str = cs_str"\t"((${dollar}col["rsid"]":"i in a) ? a[${dollar}col["rsid"]":"i] : "-1")
+                cs_str = cs_str"\t"(($col["rsid"]":"i in a) ? a[$col["rsid"]":"i] : "-1")
             }
-            print ${dollar}0""cs_str
+            print $0""cs_str
         }
         ' ${pheno}.FINEMAP.temp.cred ${pheno}.FINEMAP.temp.snp | bgzip -c -@ ${cpu} > ${pheno}.FINEMAP.snp.bgz
 
@@ -311,24 +309,24 @@ task combine {
             region = a[1]":"a[2]
             regions[region] = region
         }
-        FNR > 1 && ${dollar}0 ~ /Regional SNP heritability/ {
-            match(${dollar}0, /([0-9\.]+) \(SD: ([0-9\.]+) ; 95% CI: \[([0-9\.]+),([0-9\.]+)/, a)
+        FNR > 1 && $0 ~ /Regional SNP heritability/ {
+            match($0, /([0-9\.]+) \(SD: ([0-9\.]+) ; 95% CI: \[([0-9\.]+),([0-9\.]+)/, a)
             h2g[region] = a[1]"\t"a[2]"\t"a[3]"\t"a[4]
         }
-        FNR > 1 && ${dollar}0 ~ /Log10-BF of >= one causal SNP/ {
-            match(${dollar}0, /: ([0-9\.\-]+)/, a)
+        FNR > 1 && $0 ~ /Log10-BF of >= one causal SNP/ {
+            match($0, /: ([0-9\.\-]+)/, a)
             log10bf[region] = a[1]
         }
-        FNR > 1 && ${dollar}0 ~ /Post-expected # of causal SNPs/ {
-            match(${dollar}0, /: ([0-9\.\-]+)/, a)
+        FNR > 1 && $0 ~ /Post-expected # of causal SNPs/ {
+            match($0, /: ([0-9\.\-]+)/, a)
             n_exp[region] = a[1]
         }
-        FNR > 1 && ${dollar}0 ~ /Post-Pr\(# of causal SNPs is k\)/ {
+        FNR > 1 && $0 ~ /Post-Pr\(# of causal SNPs is k\)/ {
             getline
             pp_str=""
             for (i = 1; i <= ${n_causal_snps}; i++) {
                 getline
-                match(${dollar}0, /-> ([0-9\.]+)/, a)
+                match($0, /-> ([0-9\.]+)/, a)
                 pp_str = pp_str""a[1]"\t"
             }
             pp[region] = pp_str""n_exp[region]
@@ -349,14 +347,14 @@ task combine {
             OFS = "\t"
         }
         NR == 1 {
-            print "trait", "region", ${dollar}0
+            print "trait", "region", $0
         }
         FNR == 1 {
             match(FILENAME, /(chr[0-9]+)\.([0-9]+-[0-9]+)\./, a)
             region = a[1]":"a[2]
         }
         FNR > 1 {
-            print pheno, region, ${dollar}0
+            print pheno, region, $0
         }
         ' ${sep=" " susie_cred} | bgzip -c -@ ${cpu} > ${pheno}.SUSIE.cred.bgz
 

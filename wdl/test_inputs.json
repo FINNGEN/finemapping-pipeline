@@ -1,6 +1,6 @@
 {
     "finemap.zones": "europe-west1-b",
-    "finemap.docker": "eu.gcr.io/finngen-refinery-dev/finemap-suite:0.5",
+    "finemap.docker": "eu.gcr.io/finngen-refinery-dev/finemap-suite:0.6",
     // "finemap.sumstatsdir": "gs://r3_data/saige/summary_stats_raw",
     "finemap.sumstatsdir": "gs://fg-finemapping/test",
     // "finemap.phenolistfile": "gs://fg-finemapping/test/phenolist3.txt",
