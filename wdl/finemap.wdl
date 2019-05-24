@@ -44,7 +44,6 @@ task preprocess {
     }
 
     runtime {
-
         docker: "${docker}"
         cpu: "${cpu}"
         memory: "${mem} GB"
@@ -61,6 +60,8 @@ workflow finemap {
     String docker
     String sumstatsdir
     File phenolistfile
+    File phenotypes
+
     Array[String] phenos = read_lines(phenolistfile)
 
     scatter (pheno in phenos) {
@@ -70,7 +71,7 @@ workflow finemap {
         }
 
         call sub.ldstore_finemap {
-            input: zones=zones, docker=docker, pheno=pheno, zfiles=preprocess.zfiles
+            input: zones=zones, docker=docker, pheno=pheno, zfiles=preprocess.zfiles, phenofile=phenotypes, pheno=pheno
         }
     }
 }

@@ -17,7 +17,7 @@ task ldstore {
     Int mem
 
     command <<<
-
+        #!/usr/bin/env bas
         wc -l ${incl} | cut -f1 -d' ' > ${n_samples_file}
         awk -v n_samples=`cat ${n_samples_file}` '
         BEGIN {
@@ -25,13 +25,10 @@ task ldstore {
             print "z", "bgen", "bgi", "bcor", "ld", "sample", "incl", "n_samples"
             print "${zfile}", "${bgen}", "${bgi}", "${prefix}.bcor", "${prefix}.ld", "${sample}", "${incl}", n_samples
         }' > ${master}
-
         ldstore --in-files ${master} --write-bcor --n-threads ${cpu}
         ldstore --in-files ${master} --bcor-to-text
-
         bgzip -@ ${cpu} ${prefix}.ld
         mv ${prefix}.ld.gz ${prefix}.ld.bgz
-
     >>>
 
     output {
@@ -60,16 +57,18 @@ task finemap {
     Float corr_group
     File zfile
     File bcor
+    File phenofile
+    String pheno
     String prefix = basename(zfile, ".z")
     String ld = prefix + '.ld'
     String master = prefix + ".master"
     String zones
     String docker
-    Int cpu
-    Int mem
+    Int cpu=8
+    Int mem=52
 
     command <<<
-
+        #!/usr/bin/env bash
         awk -v n_samples=${n_samples} '
         BEGIN {
             OFS = ";"
@@ -77,11 +76,34 @@ task finemap {
             print "${zfile}", "${bcor}", "${prefix}.snp", "${prefix}.config", "${prefix}.cred", n_samples, "${prefix}.log"
         }' > ${master}
 
+        prior_std=$(zcat ${phenofile} | awk -v ph=${pheno} \
+            ' BEGIN{FS="\t"}
+              NR==1{
+                    for(i=1;i<=NF;i++) {
+                        h[$i]=i;
+                    };
+                    exists=ph in h;
+                    if (!exists) {
+                        print "Phenotype:"ph" not found in the given phenotype file." > "/dev/stderr"; err=1; exit 1;
+                    }
+                   cases=0;controls=0;
+              }
+              NR>1{ vals[$(h[ph])]+=1 }
+              END{ if(!err) {phi=vals["1"]/(vals["1"]+vals["0"]); std=0.05 * sqrt(phi*(1-phi)); printf std} }
+            ')
+
+        if [[ $? -ne 0 ]]
+        then
+            echo "Error occurred while getting prior std from case control counts:" $prior_std
+            exit 1
+        fi
+
         finemap --sss \
             --in-files ${master} \
             --log \
             --n-causal-snps ${n_causal_snps} \
-            --n-threads ${cpu}
+            --n-threads ${cpu} \
+            --prior-std $prior_std
 
         # Merge p column
         cp ${prefix}.snp ${prefix}.snp.temp
@@ -109,13 +131,11 @@ task finemap {
     >>>
 
     output {
-
         File snp = prefix + ".snp"
         File config = prefix + ".config"
         # File cred = prefix + ".cred"
-        Array[File] cred_files = glob(prefix + ".cred*")
+        Array[File] cred_files = glob("*.cred*")
         File log = prefix + ".log_sss"
-
     }
 
     runtime {
@@ -140,8 +160,8 @@ task susie {
     String prefix = basename(zfile, ".z")
     String zones
     String docker
-    Int cpu
-    Int mem
+    Int cpu=8
+    Int mem=500
 
     command {
 
@@ -389,6 +409,7 @@ workflow ldstore_finemap {
     String pheno
     Int n_causal_snps
     Array[File] zfiles
+    File phenofile
 
     scatter (zfile in zfiles) {
 
@@ -397,7 +418,9 @@ workflow ldstore_finemap {
         }
 
         call finemap {
-            input: zones=zones, docker=docker, zfile=zfile, bcor=ldstore.bcor, n_samples=ldstore.n_samples, n_causal_snps=n_causal_snps
+            input: zones=zones, docker=docker, zfile=zfile,
+                bcor=ldstore.bcor, n_samples=ldstore.n_samples,
+                n_causal_snps=n_causal_snps, phenofile=phenofile, pheno=pheno
         }
 
         call susie {
