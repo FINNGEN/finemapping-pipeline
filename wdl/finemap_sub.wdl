@@ -17,7 +17,7 @@ task ldstore {
     Int mem
 
     command <<<
-        #!/usr/bin/env bas
+        #!/usr/bin/env bash
         wc -l ${incl} | cut -f1 -d' ' > ${n_samples_file}
         awk -v n_samples=`cat ${n_samples_file}` '
         BEGIN {
