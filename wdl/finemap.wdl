@@ -8,6 +8,7 @@ task preprocess {
     String docker
     Int cpu
     Int mem
+    Boolean beta_from_pval
 
     command {
 
@@ -31,7 +32,8 @@ task preprocess {
             --input-incl-samples '' \
             -n 1 \
             --var-y 1 \
-            --out ${pheno}
+            --out ${pheno} \
+            ${true='--beta_from_pval' false=' ' beta_from_pval}
     }
 
     output {
