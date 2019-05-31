@@ -47,7 +47,8 @@ def read_sumstats(path,
                   recontig=False,
                   set_rsid=False,
                   flip_beta=False,
-                  grch38=False):
+                  grch38=False,
+                  beta_from_pval=False):
     logger.info("Loading sumstats: " + path)
 
     sumstats = pd.read_csv(
@@ -109,6 +110,11 @@ def read_sumstats(path,
         sumstats['p'] = 2 * sp.stats.norm.sf(np.abs(sumstats.beta / sumstats.se))
     elif p_col != 'p':
         sumstats = sumstats.rename(index=str, columns={p_col: 'p'})
+
+    if beta_from_pval:
+        sumstats['beta'] =  np.sign(sumstats.beta) * np.abs(sp.stats.norm.ppf(  sumstats.p/2 ))
+        sumstats['se'] = 1
+
     sumstats = sumstats.dropna(subset=['beta', 'se', 'p'])
     return sumstats
 
@@ -342,7 +348,8 @@ def main(args):
             recontig=args.recontig[i],
             set_rsid=args.set_rsid[i],
             flip_beta=args.flip_beta[i],
-            grch38=args.grch38[i]
+            grch38=args.grch38[i],
+            beta_from_pval=args.beta_from_pval
         ), enumerate(args.sumstats))
 
     if args.bed is None:
@@ -457,6 +464,8 @@ if __name__ == '__main__':
     parser.add_argument('--set-rsid', action='store_true', default=False)
     parser.add_argument('--flip-beta', action='store_true', default=False)
     parser.add_argument('--grch38', action='store_true', default=False)
+    parser.add_argument('--beta_from_pval', action='store_true', default=False, help='Get Z score from p-value instead of using beta and se. '
+                                                                                     'Should be used when SPA approximation has been used to generate p-value (e.g. SAIGE)')
 
     JSON_PARAMS = [
         'rsid_col', 'chromosome_col', 'position_col', 'allele1_col', 'allele2_col', 'maf_col', 'freq_col', 'beta_col',
