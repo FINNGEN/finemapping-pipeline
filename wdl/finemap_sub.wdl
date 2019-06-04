@@ -154,28 +154,51 @@ task finemap {
 task susie {
     Int n_samples
     Int n_causal_snps
-    Float var_y
     File zfile
     File ld_bgz
+    File phenofile
+    String pheno
     String prefix = basename(zfile, ".z")
     String zones
     String docker
     Int cpu=8
     Int mem=500
 
-    command {
+    command <<<
+        #!/usr/bin/env bash
+        var_y=$(zcat ${phenofile} | awk -v ph=${pheno} \
+            ' BEGIN{FS="\t"}
+              NR==1{
+                    for(i=1;i<=NF;i++) {
+                        h[$i]=i;
+                    };
+                    exists=ph in h;
+                    if (!exists) {
+                        print "Phenotype:"ph" not found in the given phenotype file." > "/dev/stderr"; err=1; exit 1;
+                    }
+                   cases=0;controls=0;
+              }
+              NR>1{ vals[$(h[ph])]+=1 }
+              END{ if(!err) {phi=vals["1"]/(vals["1"]+vals["0"]); var_y=2*phi*(1-phi); printf var_y} }
+            ')
+
+        if [[ $? -ne 0 ]]
+        then
+            echo "Error occurred while getting var_y from case control counts:" $var_y
+            exit 1
+        fi
 
         run_susieR.R \
             --z ${zfile} \
             --ld ${ld_bgz} \
             -n ${n_samples} \
             --L ${n_causal_snps} \
-            --var-y ${var_y} \
+            --var-y $var_y \
             --snp ${prefix}.susie.snp \
             --cred ${prefix}.susie.cred \
             --log ${prefix}.susie.log
 
-    }
+    >>>
 
     output {
 
@@ -424,7 +447,8 @@ workflow ldstore_finemap {
         }
 
         call susie {
-            input: zones=zones, zfile=zfile, ld_bgz=ldstore.ld_bgz, n_samples=ldstore.n_samples, n_causal_snps=n_causal_snps
+            input: zones=zones, zfile=zfile, ld_bgz=ldstore.ld_bgz, n_samples=ldstore.n_samples, n_causal_snps=n_causal_snps,
+                phenofile=phenofile, pheno=pheno
         }
     }
 

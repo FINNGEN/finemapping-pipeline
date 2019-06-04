@@ -48,7 +48,7 @@ def read_sumstats(path,
                   set_rsid=False,
                   flip_beta=False,
                   grch38=False,
-                  beta_from_pval=False):
+                  scale_se_by_pval=False):
     logger.info("Loading sumstats: " + path)
 
     sumstats = pd.read_csv(
@@ -111,9 +111,10 @@ def read_sumstats(path,
     elif p_col != 'p':
         sumstats = sumstats.rename(index=str, columns={p_col: 'p'})
 
-    if beta_from_pval:
-        sumstats['beta'] =  np.sign(sumstats.beta) * np.abs(sp.stats.norm.ppf(  sumstats.p/2 ))
-        sumstats['se'] = 1
+    if scale_se_by_pval:
+        se = np.abs(sumstats.beta / sp.stats.norm.ppf(sumstats.p/2))
+        logger.info("{} SNPs are scaled (--scale-se-by-pval)".format(np.sum(~np.isclose(sumstats.se, se))))
+        sumstats['se'] = se
 
     sumstats = sumstats.dropna(subset=['beta', 'se', 'p'])
     return sumstats
@@ -162,7 +163,7 @@ def output_z(df, prefix, boundaries, grch38=False, no_output=True):
     return outname
 
 
-def output_tasks(args, input_z, prefix, gsdir, localdir, input_samples, input_incl_samples, n_samples, var_y):
+def output_tasks(args, input_z, prefix, gsdir, localdir, input_samples, input_incl_samples, n_samples, var_y, phi=None):
     n_tasks = len(input_z)
     gsdir = pd.Series([gsdir] * n_tasks)
     localdir = pd.Series([localdir] * n_tasks)
@@ -180,11 +181,12 @@ def output_tasks(args, input_z, prefix, gsdir, localdir, input_samples, input_in
     out_cred = input_base.str.cat(['.cred'] * n_tasks)
     out_log = input_base.str.cat(['.log_sss'] * n_tasks)
     n_samples = [n_samples] * n_tasks
+    phi = [phi] * n_tasks
 
     # susie
     out_susie_snp = input_base.str.cat(['.susie.snp'] * n_tasks)
     out_susie_cred = input_base.str.cat(['.susie.cred'] * n_tasks)
-    out_susie_ser_snp = input_base.str.cat(['.susie_ser.snp'] * n_tasks)
+    # out_susie_ser_snp = input_base.str.cat(['.susie_ser.snp'] * n_tasks)
     out_susie_log = input_base.str.cat(['.susie.log'] * n_tasks)
     var_y = [var_y] * n_tasks
 
@@ -204,7 +206,8 @@ def output_tasks(args, input_z, prefix, gsdir, localdir, input_samples, input_in
             ('--output OUT_CONFIG', gsdir.str.cat(out_config.values)),
             ('--output OUT_CRED', gsdir.str.cat(out_cred.values)),
             ('--output OUT_LOG', gsdir.str.cat(out_log.values)),
-            ('--env N_SAMPLES', n_samples)
+            ('--env N_SAMPLES', n_samples),
+            ('--env PHI', phi)
         )))
     susie_tasks = pd.DataFrame(
         OrderedDict((
@@ -212,7 +215,7 @@ def output_tasks(args, input_z, prefix, gsdir, localdir, input_samples, input_in
             ('--input INPUT_LD', gsdir.str.cat(input_ld.values)),
             ('--output OUT_SNP', gsdir.str.cat(out_susie_snp.values)),
             ('--output OUT_CRED', gsdir.str.cat(out_susie_cred.values)),
-            ('--output OUT_SER_SNP', gsdir.str.cat(out_susie_ser_snp.values)),
+            # ('--output OUT_SER_SNP', gsdir.str.cat(out_susie_ser_snp.values)),
             ('--output OUT_LOG', gsdir.str.cat(out_susie_log.values)),
             ('--env N_SAMPLES', n_samples),
             ('--env VAR_Y', var_y)
@@ -348,8 +351,8 @@ def main(args):
             recontig=args.recontig[i],
             set_rsid=args.set_rsid[i],
             flip_beta=args.flip_beta[i],
-            grch38=args.grch38[i],
-            beta_from_pval=args.beta_from_pval
+            grch38=args.grch38,
+            scale_se_by_pval=args.scale_se_by_pval[i]
         ), enumerate(args.sumstats))
 
     if args.bed is None:
@@ -404,15 +407,15 @@ def main(args):
 
     for i, x in enumerate(sumstats):
         input_z = x.groupby('region').apply(
-            output_z, prefix=args.prefix[i], boundaries=boundaries, grch38=args.grch38[i], no_output=args.no_output)
+            output_z, prefix=args.prefix[i], boundaries=boundaries, grch38=args.grch38, no_output=args.no_output)
 
         if not args.no_upload:
             logger.info("Uploading z files")
-            run_command(['gsutil', '-m', 'cp'] + input_z.values.tolist() + [args.gsdir[i]])
+            run_command(['gsutil', '-m', 'cp', args.out + '.bed', args.out + '.lead_snps.txt'] + input_z.values.tolist() + [args.gsdir[i]])
 
         logger.info("Writing task files")
         output_tasks(args, input_z, args.prefix[i], args.gsdir[i], args.localdir[i], args.input_samples[i],
-                     args.input_incl_samples[i], args.n_samples[i], args.var_y[i])
+                     args.input_incl_samples[i], args.n_samples[i], args.var_y[i], args.phi[i])
 
         if args.localdir[i].startswith('gs://'):
             if not args.no_ldstore:
@@ -464,13 +467,17 @@ if __name__ == '__main__':
     parser.add_argument('--set-rsid', action='store_true', default=False)
     parser.add_argument('--flip-beta', action='store_true', default=False)
     parser.add_argument('--grch38', action='store_true', default=False)
-    parser.add_argument('--beta_from_pval', action='store_true', default=False, help='Get Z score from p-value instead of using beta and se. '
-                                                                                     'Should be used when SPA approximation has been used to generate p-value (e.g. SAIGE)')
+    parser.add_argument(
+        '--scale-se-by-pval',
+        action='store_true',
+        default=False,
+        help='Get Z score from p-value instead of using beta and se. '
+        'Should be used when SPA approximation has been used to generate p-value (e.g. SAIGE)')
 
     JSON_PARAMS = [
         'rsid_col', 'chromosome_col', 'position_col', 'allele1_col', 'allele2_col', 'maf_col', 'freq_col', 'beta_col',
-        'se_col', 'flip_col', 'p_col', 'recontig', 'set_rsid', 'flip_beta', 'grch38',
-        'project', 'regions', 'bgen_bucket', 'bgen_dirname', 'bgen_fname_format'
+        'se_col', 'flip_col', 'p_col', 'recontig', 'set_rsid', 'flip_beta', 'scale_se_by_pval',
+        'project', 'regions', 'bgen_bucket', 'bgen_dirname', 'bgen_fname_format', 'phi'
     ]
 
     # task parameters (usually set by json)
@@ -480,6 +487,7 @@ if __name__ == '__main__':
     parser.add_argument('--input-incl-samples', type=str, nargs='+')
     parser.add_argument('--n-samples', '-n', type=int, nargs='+')
     parser.add_argument('--var-y', type=float, nargs='+')
+    parser.add_argument('--phi', type=float, nargs='+', default=None)
 
     # dsub settings
     parser.add_argument('--project', type=str, default='encode-uk-biobank-restrict', nargs='+')
@@ -489,13 +497,13 @@ if __name__ == '__main__':
     parser.add_argument('--bgen-dirname', type=str, default='imputed', nargs='+')
     parser.add_argument('--bgen-fname-format', type=str, default='ukb_imp_chr{}_v3.bgen', nargs='+')
     parser.add_argument('--ldstore-machine-type', type=str, default='n1-standard-16')
-    parser.add_argument('--ldstore-image', type=str, default='gcr.io/encode-uk-biobank-restrict/ldstore:v2.0b')
+    parser.add_argument('--ldstore-image', type=str, default='gcr.io/encode-uk-biobank-restrict/finemap-suite:0.6')
     parser.add_argument('--ldstore-script', type=str, default='/humgen/atgu1/fs03/mkanai/workspace/201901_XFinemap/xfinemap/docker/ldstore/dsub_ldstore.py')
     parser.add_argument('--finemap-machine-type', type=str, default='n1-highmem-4')
     parser.add_argument('--finemap-image', type=str, default='gcr.io/encode-uk-biobank-restrict/finemap:1.3.1')
     parser.add_argument('--finemap-script', type=str, default='/humgen/atgu1/fs03/mkanai/workspace/201901_XFinemap/xfinemap/docker/finemap/dsub_finemap.py')
     parser.add_argument('--susie-machine-type', type=str, default='n1-highmem-16')
-    parser.add_argument('--susie-image', type=str, default='gcr.io/encode-uk-biobank-restrict/susie:0.7.1')
+    parser.add_argument('--susie-image', type=str, default='gcr.io/encode-uk-biobank-restrict/susie:0.8.1.0521')
     parser.add_argument('--susie-script', type=str, default='/humgen/atgu1/fs03/mkanai/workspace/201901_XFinemap/xfinemap/docker/susie/dsub_susie.py')
 
     args = parser.parse_args()
@@ -567,7 +575,7 @@ if __name__ == '__main__':
     call = "Call: \n"
     call += './{}.py \\\n'.format(os.path.basename(__file__))
     options = ['--' + x.replace('_', '-') + ' ' + str(args_dict[x]) + ' \\' for x in non_defaults]
-    call += '\n'.join(options).replace('True', '').replace('False', '')
+    call += '\n'.join(options) #.replace('True', '').replace('False', '')
     call = call[0:-1] + '\n'
     logger.info(call)
 
