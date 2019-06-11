@@ -179,7 +179,7 @@ task susie {
                    cases=0;controls=0;
               }
               NR>1{ vals[$(h[ph])]+=1 }
-              END{ if(!err) {phi=vals["1"]/(vals["1"]+vals["0"]); var_y=2*phi*(1-phi); printf var_y} }
+              END{ if(!err) {phi=vals["1"]/(vals["1"]+vals["0"]); var_y=phi*(1-phi); printf var_y} }
             ')
 
         if [[ $? -ne 0 ]]

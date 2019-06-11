@@ -113,6 +113,7 @@ def read_sumstats(path,
 
     if scale_se_by_pval:
         se = np.abs(sumstats.beta / sp.stats.norm.ppf(sumstats.p/2))
+        se[(sumstats.beta == 0) | np.isnan(se)] = sumstats.se[(sumstats.beta == 0) | np.isnan(se)]
         logger.info("{} SNPs are scaled (--scale-se-by-pval)".format(np.sum(~np.isclose(sumstats.se, se))))
         sumstats['se'] = se
 
