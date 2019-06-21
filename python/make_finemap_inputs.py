@@ -114,10 +114,9 @@ def read_sumstats(path,
     if scale_se_by_pval:
         se = np.abs(sumstats.beta / sp.stats.norm.ppf(sumstats.p/2))
         logger.info("{} SNPs are scaled (--scale-se-by-pval)".format(np.sum(~np.isclose(sumstats.se, se))))
+        se = np.abs(sumstats.beta / sp.stats.norm.ppf(sumstats.p/2))
+        se[(sumstats.beta == 0) | np.isnan(se)] = sumstats.se[(sumstats.beta == 0) | np.isnan(se)]
         sumstats['se'] = se
-        ## 0 se occurs when beta is 0 and finemap does not approve.
-        sumstats['beta'] = np.where(sumstats.se==0, np.sign(sumstats.beta) * np.abs(sp.stats.norm.ppf(  sumstats.p/2 )) , sumstats.beta)
-        sumstats['se'] = np.where(sumstats.se==0, 1, sumstats.se)
 
     sumstats = sumstats.dropna(subset=['beta', 'se', 'p'])
     return sumstats
