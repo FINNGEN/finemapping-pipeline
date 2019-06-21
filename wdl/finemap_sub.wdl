@@ -353,7 +353,7 @@ task combine {
             regions[region] = region
         }
         FNR > 1 && $0 ~ /Regional SNP heritability/ {
-            match($0, /([0-9\.]+) \(SD: ([0-9\.]+) ; 95% CI: \[([0-9\.]+),([0-9\.]+)/, a)
+            match($0, /([0-9\.\-e]+) \(SD: ([0-9\.\-e]+) ; 95% CI: \[([0-9\.\-e]+),([0-9\.\-e]+)/, a)
             h2g[region] = a[1]"\t"a[2]"\t"a[3]"\t"a[4]
         }
         FNR > 1 && $0 ~ /Log10-BF of >= one causal SNP/ {

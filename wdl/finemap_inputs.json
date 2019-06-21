@@ -1,6 +1,6 @@
 {
     "finemap.zones": "europe-west1-b",
-    "finemap.docker": "eu.gcr.io/finngen-refinery-dev/finemap-suite:0.7",
+    "finemap.docker": "eu.gcr.io/finngen-refinery-dev/finemap-suite:0.7.02",
     "finemap.sumstatsdir": "gs://r3_data/saige/summary_stats_raw",
     "finemap.phenolistfile": "gs://fg-finemapping/r3/phenolist/r3_demo_19endpoints.txt",
     "finemap.phenotypes": "gs://r3_data/pheno/R3_COV_PHENO_V1.txt.gz",
