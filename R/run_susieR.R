@@ -25,7 +25,7 @@ load_R <- function(path, snp) {
   return(R)
 }
 
-susie_bhat_wrapper <- function(beta, se, R, n, L, var_y = 1.0) {
+susie_bhat_wrapper <- function(beta, se, R, n, L, var_y = 1.0, prior_weights = NULL) {
   fitted_bhat <- susie_bhat(
     bhat = beta,
     shat = se,
@@ -33,6 +33,7 @@ susie_bhat_wrapper <- function(beta, se, R, n, L, var_y = 1.0) {
     n = n,
     var_y = var_y,
     L = L,
+    prior_weights = prior_weights,
     scaled_prior_variance = 0.1,
     estimate_residual_variance = TRUE,
     estimate_prior_variance = TRUE,
@@ -50,7 +51,11 @@ susie_bhat_wrapper <- function(beta, se, R, n, L, var_y = 1.0) {
       )
   cs <- summary(fitted_bhat)$cs
 
-  return(list(variables = variables, cs = cs))
+  return(list(
+    susie_obj = fitted_bhat,
+    variables = variables,
+    cs = cs
+  ))
 }
 
 main <- function(args) {
@@ -67,21 +72,45 @@ main <- function(args) {
     var_y <- NULL
   }
 
+  if (!is.null(args$prior_weights)) {
+    prior_weights <- fread(args$prior_weights)
+    df$v = str_c(df$chromosome, df$position, df$allele1, df$allele2, sep = ":")
+    prior_weights <- prior_weights$mean_binpred[match(df$v, prior_weights$SNP)]
+    if (is.null(prior_weights)) {
+      stop("'min_binpred' is missing (--prior-weights).")
+    }
+    if (any(is.na(prior_weights))) {
+      stop("All SNPs should have prior weights (--prior-weights).")
+    }
+  } else {
+    prior_weights <- NULL
+  }
+
   if (!is.null(args$ld)) {
     R <- load_R(args$ld, df$rsid)
-    res <- susie_bhat_wrapper(df$beta, df$se, R, n, L, var_y)
-    variables <- cbind(df, res$variables[c("mean", "sd", "prob", "cs")])
-    cs <- res$cs
-    if (!is.null(cs)) {
-      cs <- cs %>% mutate(cs_size = length(str_split(variable, ",")[[1]])) %>% select(-variable)
-    }
-
-    write.table(variables, args$snp, sep = "\t", row.names = F, quote = F)
-    write.table(cs, args$cred, sep = "\t", row.names = F, quote = F)
   } else {
+    warning("No LD file is provided.")
     require(Matrix)
     R <- Matirx::.sparseDiagonal(nrow(df))
   }
+
+  res <- susie_bhat_wrapper(df$beta, df$se, R, n, L, var_y, prior_weights)
+  variables <- cbind(df, res$variables[c("mean", "sd", "prob", "cs")])
+  cs <- res$cs
+  if (!is.null(cs)) {
+    cs <- cs %>% mutate(cs_size = length(str_split(variable, ",")[[1]])) %>% select(-variable)
+  }
+  if (args$write_alpha) {
+    alpha <- t(res$susie_obj$alpha)
+    colnames(alpha) <- paste0("alpha", seq(ncol(alpha)))
+    variables <- cbind(variables, alpha)
+  }
+  if (args$save_susie_obj) {
+    saveRDS(res$susie_obj, file = args$susie_obj)
+  }
+
+  write.table(variables, args$snp, sep = "\t", row.names = F, quote = F)
+  write.table(cs, args$cred, sep = "\t", row.names = F, quote = F)
 }
 
 parser <- ArgumentParser()
@@ -92,10 +121,14 @@ parser$add_argument("--out", type = "character")
 parser$add_argument("--snp", type = "character")
 parser$add_argument("--cred", type = "character")
 parser$add_argument("--log", type = "character")
+parser$add_argument("--susie-obj", type = "character")
 parser$add_argument("--pheno", type = "character")
 parser$add_argument("--n-samples", "-n", type = "integer", required = TRUE)
 parser$add_argument("--var-y", type = "double", default = 1.0)
 parser$add_argument("--L", type = "integer", default = 10)
+parser$add_argument("--prior-weights", type = "character")
+parser$add_argument("--write-alpha", action = "store_true")
+parser$add_argument("--save-susie-obj", action = "store_true")
 
 args <- parser$parse_args()
 print(args)
@@ -115,6 +148,9 @@ if (is.null(args$cred)) {
 }
 if (is.null(args$log)) {
   args$log <- paste0(args$out, ".susie.log")
+}
+if (is.null(args$susie_obj)) {
+  args$susie_obj <- paste0(args$out, ".susie.rds")
 }
 
 sink(file(args$log, open = "w"), type = "message")

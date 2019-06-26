@@ -196,7 +196,9 @@ task susie {
             --var-y $var_y \
             --snp ${prefix}.susie.snp \
             --cred ${prefix}.susie.cred \
-            --log ${prefix}.susie.log
+            --log ${prefix}.susie.log \
+            --susie-obj ${prefix}.susie.rds \
+            --save-susie-obj
 
     >>>
 
@@ -205,6 +207,7 @@ task susie {
         File snp = prefix + ".susie.snp"
         File cred = prefix + ".susie.cred"
         File log = prefix + ".susie.log"
+        File rds = prefix + ".susie.rds"
 
     }
 
