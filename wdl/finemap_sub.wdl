@@ -256,9 +256,11 @@ task combine {
             region = a[1]":"a[2]
         }
         FNR > 1 {
+            chrom = substr($col["chromosome"], 4)
+            sub(/^0/, "", chrom)
             v = sprintf( \
                 "%s:%s:%s:%s", \
-                sub(/^0/, "", substr($col["chromosome"], 4)), \
+                chrom, \
                 $col["position"], \
                 $col["allele1"], \
                 $col["allele2"] \
