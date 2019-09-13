@@ -25,6 +25,11 @@ logger.addHandler(handler)
 logger.propagate = False
 
 CHROM_CONSTANT = int(1e11)
+# mapping chromosome string (incluing 01-09 and X) and integer
+CHROM_MAPPING_INT = dict([(str(i), i) for i in range(1, 24)] + [('0' + str(i), i) for i in range(1, 10)] + [('X', 23)])
+# mapping chromosome string (incluing 01-09, 23, and X) and correct string
+CHROM_MAPPING_STR = dict([(str(i), str(i)) for i in range(1, 23)] + [('0' + str(i), str(i)) for i in range(1, 10)] +
+                         [('X', 'X'), ('23', 'X')])
 FINEMAP_COLUMNS = ['rsid', 'chromosome', 'position', 'allele1', 'allele2', 'maf', 'beta', 'se', 'p']
 
 
@@ -68,15 +73,14 @@ def read_sumstats(path,
 
     if grch38:
         sumstats['chromosome'] = sumstats.chromosome.str.replace('^chr', '')
-    # remove non-autosomal SNPs
-    sumstats = sumstats.loc[sumstats.chromosome.str.contains('^[0-9]'), :]
+    # remove non-compatible chromosomes
+    sumstats = sumstats.loc[sumstats.chromosome.isin(CHROM_MAPPING_STR.keys()), :]
     # convert to chrpos: 1e11 * chr + pos
-    sumstats['chrpos'] = convert_chrpos(sumstats.chromosome.astype(int), sumstats.position)
+    chromosome_int = sumstats.chromosome.map(CHROM_MAPPING_INT).astype(int)
+    sumstats['chrpos'] = convert_chrpos(chromosome_int, sumstats.position)
 
     if recontig:
-        sumstats['chromosome'] = np.where(
-            sumstats.chromosome.astype(int) < 10, '0' + sumstats.chromosome.astype(str),
-            sumstats.chromosome.astype(str))
+        sumstats['chromosome'] = np.where(chromosome_int < 10, '0' + sumstats.chromosome, sumstats.chromosome)
 
     if set_rsid:
         sumstats['rsid'] = sumstats.chromosome.str.cat(
@@ -121,7 +125,14 @@ def read_sumstats(path,
     return sumstats
 
 
-def generate_bed(sumstats, p_threshold=5e-8, window=0, grch38=False, exclude_MHC=False, MHC_start=25e6, MHC_end=34e6):
+def generate_bed(sumstats,
+                 p_threshold=5e-8,
+                 maf_threshold=0,
+                 window=0,
+                 grch38=False,
+                 exclude_MHC=False,
+                 MHC_start=25e6,
+                 MHC_end=34e6):
     df = pd.concat(map(lambda x: x[x.p < p_threshold], sumstats)).sort_values('p')
     bed = []
     lead_snps = []
@@ -133,19 +144,22 @@ def generate_bed(sumstats, p_threshold=5e-8, window=0, grch38=False, exclude_MHC
     if exclude_MHC and np.sum(MHC_idx) > 0:
         logger.warning('{} significant SNPs excluded due to --exclude-MHC'.format(np.sum(MHC_idx)))
         df = df.loc[~MHC_idx, :]
+    # exclude by MAF
+    if maf_threshold > 0:
+        maf_idx = df.maf < maf_threshold
+        logger.warning('{} significant SNPs excluded due to --maf-threshold'.format(np.sum(maf_idx)))
+        df = df.loc[~maf_idx, :]
     if len(df.index) == 0:
         raise RuntimeError('No signifcant SNPs found.')
 
     while len(df.index) > 0:
         lead_snp = df.iloc[0, :]
         chrom, start, end = lead_snp.chromosome, lead_snp.position - window, lead_snp.position + window
-        chr_start, chr_end = pybedtools.chromsizes(build)['chr' + str(int(chrom))]
-        if start < chr_start:
-            start = chr_start
-        if end > chr_end:
-            end = chr_end
+        chr_start, chr_end = pybedtools.chromsizes(build)['chr' + CHROM_MAPPING_STR[chrom]]
+        start = max(start, chr_start)
+        end = min(end, chr_end)
         df = df.loc[~((df.chromosome == chrom) & (df.position >= start) & (df.position <= end)), :]
-        bed.append(pd.DataFrame([[int(chrom), int(start), int(end)]], columns=['chrom', 'start', 'end']))
+        bed.append(pd.DataFrame([[CHROM_MAPPING_INT[chrom], int(start), int(end)]], columns=['chrom', 'start', 'end']))
         lead_snps.append(lead_snp)
     bed = BedTool.from_dataframe(pd.concat(bed).sort_values(['chrom', 'start'])).merge()
     lead_snps = pd.concat(lead_snps, axis=1).T
@@ -154,7 +168,7 @@ def generate_bed(sumstats, p_threshold=5e-8, window=0, grch38=False, exclude_MHC
 
 def output_z(df, prefix, boundaries, grch38=False, no_output=True):
     i = int(df.name)
-    outname = prefix + '.chr{}.{}-{}.z'.format(int(df.chromosome.iloc[0]), boundaries[i] % CHROM_CONSTANT,
+    outname = prefix + '.chr{}.{}-{}.z'.format(CHROM_MAPPING_STR[df.chromosome.iloc[0]], boundaries[i] % CHROM_CONSTANT,
                                                boundaries[i + 1] % CHROM_CONSTANT)
     if grch38:
         df['chromosome'] = 'chr' + df.chromosome
@@ -164,7 +178,18 @@ def output_z(df, prefix, boundaries, grch38=False, no_output=True):
     return outname
 
 
-def output_tasks(args, input_z, prefix, gsdir, localdir, input_samples, input_incl_samples, n_samples, var_y, phi=None):
+def output_tasks(args,
+                 input_z,
+                 prefix,
+                 gsdir,
+                 localdir,
+                 input_samples,
+                 input_incl_samples,
+                 n_samples,
+                 var_y=None,
+                 load_yty=False,
+                 yty=None,
+                 phi=None):
     n_tasks = len(input_z)
     gsdir = pd.Series([gsdir] * n_tasks)
     localdir = pd.Series([localdir] * n_tasks)
@@ -185,11 +210,20 @@ def output_tasks(args, input_z, prefix, gsdir, localdir, input_samples, input_in
     phi = [phi] * n_tasks
 
     # susie
+    if load_yty:
+        # gsdir should be added here to distinguish from *None*.
+        input_yty = gsdir.str.cat(input_base.str.cat(['.yty'] * n_tasks).values)
+    else:
+        input_yty = [None] * n_tasks
     out_susie_snp = input_base.str.cat(['.susie.snp'] * n_tasks)
     out_susie_cred = input_base.str.cat(['.susie.cred'] * n_tasks)
-    # out_susie_ser_snp = input_base.str.cat(['.susie_ser.snp'] * n_tasks)
     out_susie_log = input_base.str.cat(['.susie.log'] * n_tasks)
     var_y = [var_y] * n_tasks
+    yty = [yty] * n_tasks
+    if args.dominant:
+        dominant = [True] * n_tasks
+    else:
+        dominant = [None] * n_tasks
 
     ldstore_tasks = pd.DataFrame(
         OrderedDict((
@@ -214,12 +248,14 @@ def output_tasks(args, input_z, prefix, gsdir, localdir, input_samples, input_in
         OrderedDict((
             ('--input INPUT_Z', gsdir.str.cat(input_z.values)),
             ('--input INPUT_LD', gsdir.str.cat(input_ld.values)),
+            ('--input INPUT_YTY', input_yty),
             ('--output OUT_SNP', gsdir.str.cat(out_susie_snp.values)),
             ('--output OUT_CRED', gsdir.str.cat(out_susie_cred.values)),
-            # ('--output OUT_SER_SNP', gsdir.str.cat(out_susie_ser_snp.values)),
             ('--output OUT_LOG', gsdir.str.cat(out_susie_log.values)),
             ('--env N_SAMPLES', n_samples),
-            ('--env VAR_Y', var_y)
+            ('--env VAR_Y', var_y),
+            ('--env YTY', yty),
+            ('--env DOMINANT', dominant)
         )))
 
     if not args.no_ldstore:
@@ -335,6 +371,16 @@ def dsub_susie(args, prefix, gsdir, project, regions, submit_jobs=False, after=N
 
 
 def main(args):
+    # remove x chromosome from the key unless --x-chromosome is specified
+    if not args.x_chromosome:
+        max_chrom_int = 22
+        for k in ['X', '23']:
+            del CHROM_MAPPING_INT[k]
+            del CHROM_MAPPING_STR[k]
+    else:
+        max_chrom_int = 23
+
+    # read sumstats
     sumstats = map(
         lambda (i, x): read_sumstats(
             x,
@@ -358,7 +404,7 @@ def main(args):
 
     if args.bed is None:
         logger.info('Generating bed')
-        merged_bed, lead_snps = generate_bed(sumstats, args.p_threshold, args.window, args.grch38,
+        merged_bed, lead_snps = generate_bed(sumstats, args.p_threshold, args.maf_threshold, args.window, args.grch38,
                                              args.exclude_MHC, args.MHC_start, args.MHC_end)
         lead_snps.to_csv(args.out + '.lead_snps.txt', sep='\t', index=False)
     else:
@@ -369,12 +415,13 @@ def main(args):
             delim_whitespace=True,
             header=None
         )
+        merged_bed.iloc[0, :] = merged_bed.iloc[0, :].str.map(CHROM_MAPPING_INT)
         merged_bed = BedTool.from_dataframe(bed).merge()
     logger.info(merged_bed)
 
     build = 'hg19' if not args.grch38 else 'hg38'
-    chromsizes = pd.DataFrame.from_dict(pybedtools.chromsizes(build), orient='index', columns=['start', 'end']).loc[['chr' + str(i) for i in range(1, 23)], :]
-    chromsizes['chromosome'] = range(1, 23)
+    chromsizes = pd.DataFrame.from_dict(pybedtools.chromsizes(build), orient='index', columns=['start', 'end']).loc[['chr' + CHROM_MAPPING_STR[str(i)] for i in range(1, max_chrom_int+1)], :]
+    chromsizes['chromosome'] = range(1, max_chrom_int+1)
     chromsizes = chromsizes[['chromosome', 'start', 'end']]
 
     unique_chroms = merged_bed.to_dataframe().iloc[0, :].unique()
@@ -416,7 +463,8 @@ def main(args):
 
         logger.info("Writing task files")
         output_tasks(args, input_z, args.prefix[i], args.gsdir[i], args.localdir[i], args.input_samples[i],
-                     args.input_incl_samples[i], args.n_samples[i], args.var_y[i], args.phi[i])
+                     args.input_incl_samples[i], args.n_samples[i], args.var_y[i], args.load_yty[i], args.yty[i],
+                     args.phi[i])
 
         if args.localdir[i].startswith('gs://'):
             if not args.no_ldstore:
@@ -438,6 +486,7 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--out', type=str)
     parser.add_argument('--p-threshold', type=float, default=5e-8)
+    parser.add_argument('--maf-threshold', type=float, default=0, help='MAF threshold for lead variants')
     parser.add_argument('--window', type=int, default=1.5e6)
     parser.add_argument('--null-region', action='store_true')
     parser.add_argument('--no-upload', action='store_true')
@@ -447,6 +496,8 @@ if __name__ == '__main__':
     parser.add_argument('--exclude-MHC', action='store_true')
     parser.add_argument('--MHC-start', type=int, default=25e6)
     parser.add_argument('--MHC-end', type=int, default=34e6)
+    parser.add_argument('--dominant', action='store_true')
+    parser.add_argument('--x-chromosome', action='store_true')
 
     # sumstats settings
     parser.add_argument('--json', type=str, nargs='+')
@@ -477,8 +528,8 @@ if __name__ == '__main__':
 
     JSON_PARAMS = [
         'rsid_col', 'chromosome_col', 'position_col', 'allele1_col', 'allele2_col', 'maf_col', 'freq_col', 'beta_col',
-        'se_col', 'flip_col', 'p_col', 'recontig', 'set_rsid', 'flip_beta', 'scale_se_by_pval',
-        'project', 'regions', 'bgen_bucket', 'bgen_dirname', 'bgen_fname_format', 'phi'
+        'se_col', 'flip_col', 'p_col', 'recontig', 'set_rsid', 'flip_beta', 'scale_se_by_pval', 'project', 'regions',
+        'bgen_bucket', 'bgen_dirname', 'bgen_fname_format', 'var_y', 'load_yty', 'yty', 'phi'
     ]
 
     # task parameters (usually set by json)
@@ -487,7 +538,9 @@ if __name__ == '__main__':
     parser.add_argument('--input-samples', type=str, nargs='+')
     parser.add_argument('--input-incl-samples', type=str, nargs='+')
     parser.add_argument('--n-samples', '-n', type=int, nargs='+')
-    parser.add_argument('--var-y', type=float, nargs='+')
+    parser.add_argument('--var-y', type=float, nargs='+', default=None)
+    parser.add_argument('--load-yty', action='store_true', default=False)
+    parser.add_argument('--yty', type=float, nargs='+', default=None)
     parser.add_argument('--phi', type=float, nargs='+', default=None)
 
     # dsub settings
@@ -504,7 +557,7 @@ if __name__ == '__main__':
     parser.add_argument('--finemap-image', type=str, default='gcr.io/encode-uk-biobank-restrict/finemap:1.3.1')
     parser.add_argument('--finemap-script', type=str, default='/humgen/atgu1/fs03/mkanai/workspace/201901_XFinemap/xfinemap/docker/finemap/dsub_finemap.py')
     parser.add_argument('--susie-machine-type', type=str, default='n1-highmem-16')
-    parser.add_argument('--susie-image', type=str, default='gcr.io/encode-uk-biobank-restrict/susie:0.8.1.0521')
+    parser.add_argument('--susie-image', type=str, default='gcr.io/encode-uk-biobank-restrict/susie:0.8.1.0521.save-rds.yty.dominant')
     parser.add_argument('--susie-script', type=str, default='/humgen/atgu1/fs03/mkanai/workspace/201901_XFinemap/xfinemap/docker/susie/dsub_susie.py')
 
     args = parser.parse_args()

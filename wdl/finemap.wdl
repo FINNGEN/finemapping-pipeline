@@ -9,6 +9,7 @@ task preprocess {
     Int cpu
     Int mem
     Boolean scale_se_by_pval
+    Boolean x_chromosome
 
     command {
 
@@ -33,7 +34,8 @@ task preprocess {
             -n 1 \
             --var-y 1 \
             --out ${pheno} \
-            ${true='--scale-se-by-pval' false=' ' scale_se_by_pval}
+            ${true='--scale-se-by-pval ' false=' ' scale_se_by_pval} \
+            ${true='--x-chromosome' false=' ' x_chromosome}
     }
 
     output {

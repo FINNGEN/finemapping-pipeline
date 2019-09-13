@@ -6,7 +6,7 @@ task ldstore {
     File sample
     File incl = incldir + "/" + pheno + ".incl"
     String prefix = basename(zfile, ".z")
-    String chrom = sub(sub(prefix, pheno + "\\.chr", ""), "\\.[0-9\\-]+$", "")
+    String chrom = sub(sub(sub(prefix, pheno + "\\.chr", ""), "\\.[0-9\\-]+$", ""), "X", "23")
     File bgen = bgendir + "/" + chrom + "R3.bgen"
     File bgi = bgen + ".bgi"
     String master = prefix + ".master"
@@ -252,13 +252,13 @@ task combine {
             print "trait", "region", "v", $0
         }
         FNR == 1 {
-            match(FILENAME, /(chr[0-9]+)\.([0-9]+-[0-9]+)\./, a)
+            match(FILENAME, /(chr[0-9X]+)\.([0-9]+-[0-9]+)\./, a)
             region = a[1]":"a[2]
         }
         FNR > 1 {
             v = sprintf( \
                 "%s:%s:%s:%s", \
-                int(substr($col["chromosome"], 4)), \
+                sub(/^0/, "", substr($col["chromosome"], 4)), \
                 $col["position"], \
                 $col["allele1"], \
                 $col["allele2"] \
@@ -284,7 +284,7 @@ task combine {
             print "trait", "region", $0
         }
         FNR == 1 {
-            match(FILENAME, /(chr[0-9]+)\.([0-9]+-[0-9]+)\./, a)
+            match(FILENAME, /(chr[0-9X]+)\.([0-9]+-[0-9]+)\./, a)
             region = a[1]":"a[2]
         }
         FNR > 1 {
@@ -351,7 +351,7 @@ task combine {
             print "trait", "region", "h2g", "h2g_sd", "h2g_lower95", "h2g_upper95", "log10bf", pp_str, "expectedvalue"
         }
         FNR == 1 {
-            match(FILENAME, /(chr[0-9]+)\.([0-9]+-[0-9]+)\./, a)
+            match(FILENAME, /(chr[0-9X]+)\.([0-9]+-[0-9]+)\./, a)
             region = a[1]":"a[2]
             regions[region] = region
         }
@@ -396,7 +396,7 @@ task combine {
             print "trait", "region", $0
         }
         FNR == 1 {
-            match(FILENAME, /(chr[0-9]+)\.([0-9]+-[0-9]+)\./, a)
+            match(FILENAME, /(chr[0-9X]+)\.([0-9]+-[0-9]+)\./, a)
             region = a[1]":"a[2]
         }
         FNR > 1 {

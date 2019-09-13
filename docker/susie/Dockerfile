@@ -18,6 +18,7 @@ RUN apt-get update -qqy && apt-get install -qqy \
     openssh-client \
     git \
     gnupg \
+    libxml2-dev \
     && pip install -U crcmod && \
     export CLOUD_SDK_REPO="cloud-sdk-$(lsb_release -c -s)" && \
     echo "deb https://packages.cloud.google.com/apt $CLOUD_SDK_REPO main" > /etc/apt/sources.list.d/google-cloud-sdk.list && \
@@ -35,14 +36,15 @@ RUN apt-get update --fix-missing && \
     rm -rf /var/lib/apt/lists/*
 
 # SUSIE
-# dev version: 0.8.1.0521
-ENV SUSIE_VERSION e81a5ca
+# dev version: 0.8.1.0545
+ENV SUSIE_VERSION ddf5b18
 RUN pip install --no-cache numpy pandas && \
     Rscript -e 'install.packages(c("devtools", "argparse", "reticulate", "dplyr", "stringr", "data.table", "here", "R.utils"), noCache = TRUE, repos="https://cloud.r-project.org")' && \
     Rscript -e "Sys.setenv(TAR = \"/bin/tar\"); devtools::install_github(\"stephenslab/susieR@${SUSIE_VERSION}\")"
 
 # Add scripts
-COPY R/run_susieR.R /usr/local/bin/
+COPY ./R/run_susieR.R /usr/local/bin/
+RUN chmod +x /usr/local/bin/run_susieR.R
 
 VOLUME [ "/root/.config/gcloud" ]
 CMD [ "/bin/bash" ]
