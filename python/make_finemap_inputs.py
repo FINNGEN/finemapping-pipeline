@@ -5,7 +5,6 @@ import os.path
 import json
 import numpy as np
 import scipy as sp
-import scipy.stats
 import pandas as pd
 import pybedtools
 from collections import OrderedDict, defaultdict
@@ -166,15 +165,20 @@ def generate_bed(sumstats,
     return bed, lead_snps
 
 
-def output_z(df, prefix, boundaries, grch38=False, no_output=True):
+def output_z(df, prefix, boundaries, grch38=False, no_output=True, extra_cols=None):
     i = int(df.name)
     outname = prefix + '.chr{}.{}-{}.z'.format(CHROM_MAPPING_STR[df.chromosome.iloc[0]], boundaries[i] % CHROM_CONSTANT,
                                                boundaries[i + 1] % CHROM_CONSTANT)
     if grch38:
         df['chromosome'] = 'chr' + df.chromosome
+
+    output_cols = FINEMAP_COLUMNS
+    if extra_cols is not None:
+        output_cols += extra_cols
+
     if not no_output:
         logger.info("Writing z file: " + outname)
-        df[FINEMAP_COLUMNS].to_csv(outname, sep=' ', float_format='%.6g', index=False)
+        df[output_cols].to_csv(outname, sep=' ', float_format='%.6g', index=False)
     return outname
 
 
@@ -455,7 +459,12 @@ def main(args):
 
     for i, x in enumerate(sumstats):
         input_z = x.groupby('region').apply(
-            output_z, prefix=args.prefix[i], boundaries=boundaries, grch38=args.grch38, no_output=args.no_output)
+            output_z,
+            prefix=args.prefix[i],
+            boundaries=boundaries,
+            grch38=args.grch38,
+            no_output=args.no_output,
+            extra_cols=args.extra_cols)
 
         if not args.no_upload:
             logger.info("Uploading z files")
@@ -515,6 +524,7 @@ if __name__ == '__main__':
     parser.add_argument('--se-col', type=str, default='se')
     parser.add_argument('--flip-col', type=str, default='flip')
     parser.add_argument('--p-col', '-p', type=str, default='p')
+    parser.add_argument('--extra-cols', type=str, nargs='+', help='Extra columns to output in .z files.')
     parser.add_argument('--recontig', action='store_true', default=False)
     parser.add_argument('--set-rsid', action='store_true', default=False)
     parser.add_argument('--flip-beta', action='store_true', default=False)
