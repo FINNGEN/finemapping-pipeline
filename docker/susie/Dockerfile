@@ -18,7 +18,6 @@ RUN apt-get update -qqy && apt-get install -qqy \
     openssh-client \
     git \
     gnupg \
-    libxml2-dev \
     && pip install -U crcmod && \
     export CLOUD_SDK_REPO="cloud-sdk-$(lsb_release -c -s)" && \
     echo "deb https://packages.cloud.google.com/apt $CLOUD_SDK_REPO main" > /etc/apt/sources.list.d/google-cloud-sdk.list && \
@@ -31,7 +30,7 @@ RUN apt-get update -qqy && apt-get install -qqy \
 
 # Install additional components
 RUN apt-get update --fix-missing && \
-    apt-get install -y libopenblas-dev libssl-dev libcurl4-openssl-dev && \
+    apt-get install -y libopenblas-dev libssl-dev libcurl4-openssl-dev libxml2-dev && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
 

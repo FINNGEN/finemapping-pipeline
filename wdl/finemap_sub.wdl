@@ -54,7 +54,6 @@ task ldstore {
 task finemap {
     Int n_samples
     Int n_causal_snps
-    Float corr_group
     File zfile
     File bcor
     File phenofile
