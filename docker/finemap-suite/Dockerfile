@@ -38,6 +38,8 @@ ADD ./docker/finemap-suite/finemap_${FINEMAP_VERSION}_x86_64 /usr/bin/finemap
 #     cp ~/finemap_${FINEMAP_VERSION}_x86_64/finemap_${FINEMAP_VERSION}_x86_64 /usr/bin/finemap && \
 #     rm -r ~/finemap_${FINEMAP_VERSION}_x86_64*
 
+# for pysam
+ENV HTSLIB_CONFIGURE_OPTIONS "--disable-bz2 --disable-lzma"
 # Add scripts
 RUN pip install --no-cache numpy scipy pandas pybedtools
 ENV PYTHONPATH /home:${PYTHONPATH}

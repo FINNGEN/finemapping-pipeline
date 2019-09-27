@@ -174,7 +174,7 @@ def output_z(df, prefix, boundaries, grch38=False, no_output=True, extra_cols=No
 
     output_cols = FINEMAP_COLUMNS
     if extra_cols is not None:
-        output_cols += extra_cols
+        output_cols = FINEMAP_COLUMNS + extra_cols
 
     if not no_output:
         logger.info("Writing z file: " + outname)
