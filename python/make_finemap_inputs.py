@@ -5,6 +5,7 @@ import os.path
 import json
 import numpy as np
 import scipy as sp
+import scipy.stats
 import pandas as pd
 import pybedtools
 from collections import OrderedDict, defaultdict
@@ -115,11 +116,12 @@ def read_sumstats(path,
         sumstats = sumstats.rename(index=str, columns={p_col: 'p'})
 
     if scale_se_by_pval:
-        se = np.abs(sumstats.beta / sp.stats.norm.ppf(sumstats.p/2))
+        se = np.abs(sumstats.beta / sp.stats.norm.ppf(sumstats.p.astype(float)/2))
         se[(sumstats.beta == 0) | np.isnan(se)] = sumstats.se[(sumstats.beta == 0) | np.isnan(se)]
         logger.info("{} SNPs are scaled (--scale-se-by-pval)".format(np.sum(~np.isclose(sumstats.se, se))))
         sumstats['se'] = se
 
+    sumstats['chisq'] = (sumstats.beta / sumstats.se) ** 2
     sumstats = sumstats.dropna(subset=['beta', 'se', 'p'])
     return sumstats
 
@@ -132,7 +134,8 @@ def generate_bed(sumstats,
                  exclude_MHC=False,
                  MHC_start=25e6,
                  MHC_end=34e6):
-    df = pd.concat(map(lambda x: x[x.p < p_threshold], sumstats)).sort_values('p')
+    chisq_threshold = sp.stats.norm.ppf(p_threshold / 2) ** 2
+    df = pd.concat(map(lambda x: x[x.chisq > chisq_threshold], sumstats)).sort_values('chisq', ascending=False)
     bed = []
     lead_snps = []
 
@@ -178,7 +181,7 @@ def output_z(df, prefix, boundaries, grch38=False, no_output=True, extra_cols=No
 
     if not no_output:
         logger.info("Writing z file: " + outname)
-        df[output_cols].to_csv(outname, sep=' ', float_format='%.6g', index=False)
+        df[output_cols].to_csv(outname, sep=' ', float_format='%.6g', na_rep='NA', index=False)
     return outname
 
 
@@ -417,9 +420,11 @@ def main(args):
         bed = pd.read_csv(
             args.bed[i],
             delim_whitespace=True,
-            header=None
+            header=None,
+            names=['chromosome', 'start', 'end'],
+            dtype={'chromosome': str}
         )
-        merged_bed.iloc[0, :] = merged_bed.iloc[0, :].str.map(CHROM_MAPPING_INT)
+        bed['chromosome'] = bed.chromosome.map(CHROM_MAPPING_INT)
         merged_bed = BedTool.from_dataframe(bed).merge()
     logger.info(merged_bed)
 
