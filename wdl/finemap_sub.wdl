@@ -1,13 +1,13 @@
 task ldstore {
     String pheno
-    String incldir
-    String bgendir
+    String bgen_pattern
     File zfile
     File sample
-    File incl = incldir + "/" + pheno + ".incl"
+    File phenofile
+    String incl = pheno + ".incl"
     String prefix = basename(zfile, ".z")
-    String chrom = sub(sub(sub(prefix, pheno + "\\.chr", ""), "\\.[0-9\\-]+$", ""), "X", "23")
-    File bgen = bgendir + "/" + chrom + "R3.bgen"
+    String chrom = sub(sub(prefix, pheno + "\\.chr", ""), "\\.[0-9\\-]+$", "")
+    File bgen = sub(bgen_pattern,"\\{CHR\\}",chrom)
     File bgi = bgen + ".bgi"
     String master = prefix + ".master"
     String n_samples_file = prefix + ".n_samples.txt"
@@ -18,6 +18,33 @@ task ldstore {
 
     command <<<
         #!/usr/bin/env bash
+        catcmd="zcat"
+        if [[ $phenofile == *.gz ]] || [[ $phenofile == *.bgz ]]
+        then
+         catcmd="zcat"
+        fi
+        echo "Reading phenotype file with $catcmd"
+
+        $catcmd ${phenofile} | awk -v ph=${pheno} \
+                    ' BEGIN{FS="\t"}
+                      NR==1{
+                            for(i=1;i<=NF;i++) {
+                                h[$i]=i;
+                            };
+                            exists=ph in h;
+                            if (!exists) {
+                                print "Phenotype:"ph" not found in the given phenotype file." > "/dev/stderr"; err=1; exit 1;
+                            }
+                      }
+                      $(h[ph])==1 || $(h[ph])==0 { print $1 }
+                    ' > ${incl}
+
+        if [[ $? -ne 0 ]]
+        then
+            echo "Given phenotype ${pheno} not found in given phenotype file ${phenofile}"
+            exit 1
+        fi
+
         wc -l ${incl} | cut -f1 -d' ' > ${n_samples_file}
         awk -v n_samples=`cat ${n_samples_file}` '
         BEGIN {
@@ -202,10 +229,9 @@ task susie {
     >>>
 
     output {
-
+        File log = prefix + ".susie.log"
         File snp = prefix + ".susie.snp"
         File cred = prefix + ".susie.cred"
-        File log = prefix + ".susie.log"
         File rds = prefix + ".susie.rds"
 
     }
@@ -441,7 +467,7 @@ workflow ldstore_finemap {
     scatter (zfile in zfiles) {
 
         call ldstore {
-            input: zones=zones, docker=docker, pheno=pheno, zfile=zfile
+            input: zones=zones, docker=docker, pheno=pheno, phenofile=phenofile, zfile=zfile
         }
 
         call finemap {
