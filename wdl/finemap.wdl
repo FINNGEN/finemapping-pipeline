@@ -2,28 +2,37 @@ import "finemap_sub.wdl" as sub
 
 task preprocess {
     String pheno
-    String sumstatsdir
-    File sumstats = sumstatsdir + "/" + pheno + ".gz"
+    String sumstats_pattern
+    File sumstats = sub(sumstats_pattern,"\\{PHENO\\}",pheno)
     String zones
     String docker
     Int cpu
     Int mem
     Boolean scale_se_by_pval
     Boolean x_chromosome
+    String rsid_col
+    String chromosome_col
+    String position_col
+    String allele1_col
+    String allele2_col
+    String freq_col
+    String beta_col
+    String se_col
+    String p_col
 
     command {
 
         make_finemap_inputs.py \
             --sumstats ${sumstats} \
-            --rsid-col "SNPID" \
-            --chromosome-col "CHR" \
-            --position-col "POS" \
-            --allele1-col "Allele1" \
-            --allele2-col "Allele2" \
-            --freq-col "AF_Allele2" \
-            --beta-col "BETA" \
-            --se-col "SE" \
-            --p-col "p.value" \
+            --rsid-col ${rsid_col} \
+            --chromosome-col ${chromosome_col} \
+            --position-col ${position_col} \
+            --allele1-col ${allele1_col} \
+            --allele2-col ${allele2_col} \
+            --freq-col ${freq_col} \
+            --beta-col ${beta_col} \
+            --se-col ${se_col} \
+            --p-col ${p_col} \
             --grch38 \
             --exclude-MHC \
             --no-upload \
@@ -36,6 +45,15 @@ task preprocess {
             --out ${pheno} \
             ${true='--scale-se-by-pval ' false=' ' scale_se_by_pval} \
             ${true='--x-chromosome' false=' ' x_chromosome}
+
+            res=`cat ${pheno}_had_results`
+
+            if [ "$res" == "False" ]; then
+                touch ${pheno}".z"
+                touch ${pheno}".lead_snps.txt"
+                touch ${pheno}".lead_snps.txt"
+                touch ${pheno}".bed"
+            fi
     }
 
     output {
@@ -44,7 +62,7 @@ task preprocess {
         File leadsnps = pheno + ".lead_snps.txt"
         File bed = pheno + ".bed"
         File log = pheno + ".log"
-
+        Boolean had_results = read_boolean("${pheno}_had_results")
     }
 
     runtime {
@@ -62,7 +80,7 @@ workflow finemap {
 
     String zones
     String docker
-    String sumstatsdir
+    String sumstats_pattern
     File phenolistfile
     File phenotypes
 
@@ -71,11 +89,14 @@ workflow finemap {
     scatter (pheno in phenos) {
 
         call preprocess {
-            input: zones=zones, docker=docker, pheno=pheno, sumstatsdir=sumstatsdir
+            input: zones=zones, docker=docker, pheno=pheno, sumstats_pattern=sumstats_pattern
         }
 
-        call sub.ldstore_finemap {
-            input: zones=zones, docker=docker, pheno=pheno, zfiles=preprocess.zfiles, phenofile=phenotypes, pheno=pheno
+        if( preprocess.had_results) {
+            call sub.ldstore_finemap {
+                input: zones=zones, docker=docker, pheno=pheno, zfiles=preprocess.zfiles, phenofile=phenotypes, pheno=pheno
+            }
         }
+
     }
 }

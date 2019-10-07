@@ -1,10 +1,14 @@
 #!/usr/bin/env python
+
+
+
 import argparse
 import os
 import os.path
 import json
 import numpy as np
 import scipy as sp
+from scipy import stats
 import pandas as pd
 import pybedtools
 from collections import OrderedDict, defaultdict
@@ -110,12 +114,12 @@ def read_sumstats(path,
 
     if p_col not in sumstats.columns:
         # assume standard linear regression
-        sumstats['p'] = 2 * sp.stats.norm.sf(np.abs(sumstats.beta / sumstats.se))
+        sumstats['p'] = 2 * stats.norm.sf(np.abs(sumstats.beta / sumstats.se))
     elif p_col != 'p':
         sumstats = sumstats.rename(index=str, columns={p_col: 'p'})
 
     if scale_se_by_pval:
-        se = np.abs(sumstats.beta / sp.stats.norm.ppf(sumstats.p/2))
+        se = np.abs(sumstats.beta / stats.norm.ppf(sumstats.p/2))
         se[(sumstats.beta == 0) | np.isnan(se)] = sumstats.se[(sumstats.beta == 0) | np.isnan(se)]
         logger.info("{} SNPs are scaled (--scale-se-by-pval)".format(np.sum(~np.isclose(sumstats.se, se))))
         sumstats['se'] = se
@@ -133,7 +137,7 @@ def generate_bed(sumstats,
                  MHC_start=25e6,
                  MHC_end=34e6):
     df = pd.concat(map(lambda x: x[x.p < p_threshold], sumstats)).sort_values('p')
-    bed = []
+    bed_frames = []
     lead_snps = []
 
     build = 'hg19' if not grch38 else 'hg38'
@@ -148,8 +152,8 @@ def generate_bed(sumstats,
         maf_idx = df.maf < maf_threshold
         logger.warning('{} significant SNPs excluded due to --maf-threshold'.format(np.sum(maf_idx)))
         df = df.loc[~maf_idx, :]
-    if len(df.index) == 0:
-        raise RuntimeError('No signifcant SNPs found.')
+    #if len(df.index) == 0:
+    #    raise RuntimeError('No signifcant SNPs found.')
 
     while len(df.index) > 0:
         lead_snp = df.iloc[0, :]
@@ -158,10 +162,16 @@ def generate_bed(sumstats,
         start = max(start, chr_start)
         end = min(end, chr_end)
         df = df.loc[~((df.chromosome == chrom) & (df.position >= start) & (df.position <= end)), :]
-        bed.append(pd.DataFrame([[CHROM_MAPPING_INT[chrom], int(start), int(end)]], columns=['chrom', 'start', 'end']))
+        bed_frames.append(pd.DataFrame([[CHROM_MAPPING_INT[chrom], int(start), int(end)]], columns=['chrom', 'start', 'end']))
         lead_snps.append(lead_snp)
-    bed = BedTool.from_dataframe(pd.concat(bed).sort_values(['chrom', 'start'])).merge()
-    lead_snps = pd.concat(lead_snps, axis=1).T
+
+    if len(bed_frames) > 0:
+        bed = BedTool.from_dataframe(pd.concat(bed_frames).sort_values(['chrom', 'start'])).merge()
+        lead_snps = pd.concat(lead_snps, axis=1).T
+    else:
+        bed = BedTool.from_dataframe( pd.DataFrame(columns=['chrom', 'start', 'end']))
+        lead_snps = df
+
     return bed, lead_snps
 
 
@@ -421,6 +431,16 @@ def main(args):
         )
         merged_bed.iloc[0, :] = merged_bed.iloc[0, :].str.map(CHROM_MAPPING_INT)
         merged_bed = BedTool.from_dataframe(bed).merge()
+
+    ##  write had results indicator file for WDL purposes
+    with open(args.out + "_had_results", 'w') as o:
+        if( merged_bed.count()==0):
+            logger.info("No significant regions identified.")
+            o.write("False\n")
+            return
+        else:
+            o.write("True\n")
+
     logger.info(merged_bed)
 
     build = 'hg19' if not args.grch38 else 'hg38'
@@ -428,7 +448,8 @@ def main(args):
     chromsizes['chromosome'] = range(1, max_chrom_int+1)
     chromsizes = chromsizes[['chromosome', 'start', 'end']]
 
-    unique_chroms = merged_bed.to_dataframe().iloc[0, :].unique()
+
+    unique_chroms = merged_bed.to_dataframe().iloc[0, :].unique() if merged_bed.count()>0 else merged_bed.to_dataframe()
     all_bed = BedTool.from_dataframe(chromsizes[chromsizes.chromosome.isin(unique_chroms)])
     all_bed = all_bed.subtract(merged_bed).cat(
         merged_bed, postmerge=False).to_dataframe().sort_values(['chrom', 'start'])
@@ -489,7 +510,6 @@ def main(args):
         else:
             dsub_finemap(args, args.prefix[i], args.gsdir[i], args.project[i], args.regions[i], submit_jobs=False)
             dsub_susie(args, args.prefix[i], args.gsdir[i], args.project[i], args.regions[i], submit_jobs=False)
-
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
