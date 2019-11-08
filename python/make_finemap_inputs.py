@@ -522,21 +522,7 @@ class Test(unittest.TestCase):
     def generate_bed(self):
         lst=["A","B","C"]
         result={"A":"Prefix_A","B":"Prefix_B","C":"Prefix_C"}
-        d=annotate.create_rename_dict(lst,"Prefix_")
-        self.assertEqual(d,result)
 
-merged_bed, lead_snps = generate_bed(sumstats, args.p_threshold, args.maf_threshold, args.window, args.grch38,
-                                     args.exclude_MHC, args.MHC_start, args.MHC_end)
-    self.assertEqual(lead_snp,lead_snp_truth)
-    self.assertEqual(merged_bed,merged_bed_truth)
-generate_bed(sumstats,
-             p_threshold=5e-8,
-             maf_threshold=0,
-             window=0,
-             grch38=False,
-             exclude_MHC=False,
-             MHC_start=25e6,
-             MHC_end=34e6)
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
