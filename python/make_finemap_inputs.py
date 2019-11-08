@@ -519,9 +519,19 @@ def main(args):
 
 
 class Test(unittest.TestCase):
-    def generate_bed(self):
-        lst=["A","B","C"]
-        result={"A":"Prefix_A","B":"Prefix_B","C":"Prefix_C"}
+    def test_generate_bed(self):
+        data = {'chromosome':[1, 2, 3, 22], 'position':[1, 1, 1, 1], 'rsid':['rs1', 'rs2', 'rs3', 'rs4'], 'allele1':['A', 'C', 'G', 'T'], 'allele2':['TG', 'G', 'C', 'A'], 'maf':[0.1, 0.2, 0.3, 0.4], 'beta':[1, 1, 1, 10], 'se':[1, 1, 1, 1], 'flip':[0, 0, 0, 0]}
+        sumstats=pd.DataFrame(data)
+        sumstats['chisq'] = (sumstats.beta / sumstats.se) ** 2
+        sumstats['chrpos'] = sumstats.chromosome * int(1e11) + sumstats.position
+        #
+        # tbd: merged_bed_truth=pd.DataFrame(data)
+        # tbd: lead_snp_truth=pd.DataFrame(data)
+        merged_bed_test, lead_snps_test = generate_bed(sumstats,p_threshold=5e-8,maf_threshold=0,window=0,grch38=False,exclude_MHC=False,MHC_start=25e6,MHC_end=34e6)
+        self.assertEqual(lead_snp_test,lead_snp_truth)
+        self.assertEqual(merged_bed_test,merged_bed_truth)
+
+
 
 
 if __name__ == '__main__':
