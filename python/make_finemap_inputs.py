@@ -526,7 +526,7 @@ class Test(unittest.TestCase):
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument('--test', action='store_true')
+    parser.add_argument('--run-test', action='store_true', default=False, help='Run unittests')
     parser.add_argument('--out', type=str)
     parser.add_argument('--p-threshold', type=float, default=5e-8)
     parser.add_argument('--maf-threshold', type=float, default=0, help='MAF threshold for lead variants')
@@ -606,7 +606,7 @@ if __name__ == '__main__':
 
     args = parser.parse_args()
 
-    if args.test:
+    if args.run_test:
         unittest.main()
 
     n_sumstats = len(args.sumstats)
