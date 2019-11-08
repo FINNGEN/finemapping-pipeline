@@ -520,7 +520,6 @@ def main(args):
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument('--test', action='store_true')
     parser.add_argument('--out', type=str)
     parser.add_argument('--p-threshold', type=float, default=5e-8)
     parser.add_argument('--maf-threshold', type=float, default=0, help='MAF threshold for lead variants')
