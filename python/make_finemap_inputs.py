@@ -517,12 +517,6 @@ def main(args):
             dsub_finemap(args, args.prefix[i], args.gsdir[i], args.project[i], args.regions[i], submit_jobs=False)
             dsub_susie(args, args.prefix[i], args.gsdir[i], args.project[i], args.regions[i], submit_jobs=False)
 
-class TestFP(unittest.TestCase):
-    def test_rename_dict(self):
-        lst=["A","B","C"]
-        result={"A":"Prefix_A","B":"Prefix_B","C":"Prefix_C"}
-        d=annotate.create_rename_dict(lst,"Prefix_")
-        self.assertEqual(d,result)
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
@@ -606,8 +600,6 @@ if __name__ == '__main__':
 
     args = parser.parse_args()
 
-    if args.test:
-        unittest.main()
     
     n_sumstats = len(args.sumstats)
 
