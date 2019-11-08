@@ -11,6 +11,7 @@ import scipy as sp
 from scipy import stats
 import pandas as pd
 import pybedtools
+import unittest
 from collections import OrderedDict, defaultdict
 from logging import getLogger, StreamHandler, FileHandler, Formatter, DEBUG
 from pybedtools import BedTool
@@ -516,8 +517,16 @@ def main(args):
             dsub_finemap(args, args.prefix[i], args.gsdir[i], args.project[i], args.regions[i], submit_jobs=False)
             dsub_susie(args, args.prefix[i], args.gsdir[i], args.project[i], args.regions[i], submit_jobs=False)
 
+class TestFP(unittest.TestCase):
+    def test_rename_dict(self):
+        lst=["A","B","C"]
+        result={"A":"Prefix_A","B":"Prefix_B","C":"Prefix_C"}
+        d=annotate.create_rename_dict(lst,"Prefix_")
+        self.assertEqual(d,result)
+
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
+    parser.add_argument('--test', action='store_true')
     parser.add_argument('--out', type=str)
     parser.add_argument('--p-threshold', type=float, default=5e-8)
     parser.add_argument('--maf-threshold', type=float, default=0, help='MAF threshold for lead variants')
@@ -597,6 +606,9 @@ if __name__ == '__main__':
 
     args = parser.parse_args()
 
+    if args.test:
+        unittest.main()
+    
     n_sumstats = len(args.sumstats)
 
     args_dict = vars(args)
