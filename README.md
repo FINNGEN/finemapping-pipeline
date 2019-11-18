@@ -81,16 +81,16 @@ Columns:
 - v: variant
 - index: running index
 - rsid    variant id
--chromosome      
--position        
--allele1 
--allele2 
--maf     
--beta    
--se      
--z       
--prob    
--log10bf 
+- chromosome      
+- position        
+- allele1 
+- allele2 
+- maf     
+- beta    
+- se      
+- z       
+- prob    
+- log10bf 
 - mean marginalized shrinkage estimates of the posterior effect size mean
 - sd marginalized shrinkage estimates of the posterior effect standard deviation     
 
@@ -101,9 +101,9 @@ p       cs      cs2     cs3     cs4     cs5     cs6     cs7     cs8     cs9     
 ### Posterior inclusion probabilities of SNPs in x number of signals solution
 
 Columns:
--index running index 
--credn variant in credible set n
--probn posterior inclusion probability of variant into credible set n
+- index running index 
+- credn variant in credible set n
+- probn posterior inclusion probability of variant into credible set n
 
 
 
