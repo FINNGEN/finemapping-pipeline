@@ -97,8 +97,8 @@ Columns:
 -mean_inclsd_incl:
 p       cs      cs2     cs3     cs4     cs5     cs6     cs7     cs8     cs9     cs10
 
-###PHENOTYPE.REGION.credx files
-###Posterior inclusion probabilities of SNPs in x number of signals solution
+### PHENOTYPE.REGION.credx files
+### Posterior inclusion probabilities of SNPs in x number of signals solution
 
 Columns:
 -index running index 
