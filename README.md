@@ -1,159 +1,107 @@
-# Autoreporting tool output readme
+# finemapping-pipeline
 
-This readme contains information about the autoreporting tool results for FinnGen summary statistics.
-
-<!-- TOC depthFrom:1 depthTo:6 withLinks:1 updateOnSave:1 orderedList:0 -->
-
-- [Autoreporting tool output readme](#autoreporting-tool-output-readme)
-	- [Contents](#contents)
-	- [Used Parameters](#used-parameters)
-	- [Detailed File Descriptions](#detailed-file-descriptions)
-		- [Group Reports (.top.out)](#group-reports-topout)
-		- [Variant Reports (report.out)](#variant-reports-reportout)
-		- [Annotated Variants (.annotate.out)](#annotated-variants-annotateout)
-		- [Filtered Variant Reports (.fetch.out)](#filtered-variant-reports-fetchout)
-- [variant| variant identifier.](#variant-variant-identifier)
-
-<!-- /TOC -->
+Fine-mapping pipeline using FINEMAP and SuSiE.
 
 
-## Contents
+# Output descriptions
 
-Four files are given for each phenotype:
-- Group Reports (.top.out)
-- Full Variant Reports (.report.out)
-- Annotated Variant Reports (.annotate.out)
-- Filtered Variant Reports (.fetch.out)
+## SUSIE output
 
-This folder contains the outputs from running the automatic reporting tool for all phenotypes.
+### PHENONAME.SUSIE.cred.bgz
+### Contains credible set summaries from SUSIE finemapping for all genome-wide significant regions.
 
-The files are further divided into 4 folders.
-The group results are in the folder ```group_reports```. These reports contain an overview of what GWAS Catalog phenotypes if any the variants in the groups matched with, the lead variant p-value, enrichment factor, most severe consequence etc.
-The full reports are in the folder ```full_reports```. These contain the complete information for all of the genome-wide significant variants. Information includes annotation information from gnoMAD, finngen annotations, GWAS Catalog matched phenotypes, matched variant information, and group-related information.
-The annotated variant reports are in the folder  ```annotated```. These contain only the gws variants and their annotation information from gnoMAD and finngen annotations. The full reports contain all of the information that is available here.
-The filtered variant reports are in the folder ```filtered```. These reports contain only the variant information, as well as the group information. The full reports contain all of this information.
+Columns:
+- region:  region for which the finemapping was ran.
+- cs: running number for independent credible sets in a region
+- cs_log10bf: Log10 bayes factor of comparing the solution of this model (cs  independent credible sets) to cs -1 credible sets.
+- cs_avg_r2: Average correlation R2 between variants in the credible set
+- cs_min_r2: minimum r2  between variants in the credible set
+- cs_size: how many snps does this credible set contain
 
-All of the reports are tab-separated value (tsv) files, and can be opened using e.g. Libreoffice Calc, or your favourite data analysis environment (R, Python etc).
+### PHENONAME.SUSIE.snp.bgz
+### Contains variants and their summary statistics for variants in all credible set.
 
-A recommended way to use these files is:
-For a phenotype 'PHENOTYPE',
-1) Look if the phenotype has any interesting signals from ```group_reports/PHENOTYPE.gz.top.out```.
-2) In case you want a closer look into some of the variants in that phenotype, look up those variants from ```full_reports/PHENOTYPE.gz.report.out```.
+Columns:
+- trait: phenotype
+- region:  region for which the finemapping was ran.
+- v, rsid: variant ids
+- chromosome
+- position
+- allele1
+- allele2
+- maf: minor allele frequency
+- beta: original nbeta
+- se: original se
+- p: original p
+- mean: posterior mean beta after finemapping
+- sd: posterior standard deviation after finemapping.
+- prob: posterior inclusion probability
+- cs: credible set index within region
 
-The files in folders ```annotated``` and ```filtered``` are of no real interest to anyone other than the tool developers.
+## Finemap output
 
-## Used Parameters
-The parameters that were used for these results are described here.
+### PHENONAME.FINEMAP.config.bgz
+### Summary finemapping variant configurations from FINEMAP method.
+Columns:
+- trait: phenotype
+- region: region for which the finemapping was ran.
+- rank: rank of this configuration within a region
+- config: causal variants in this configuration
+- prob: probability across all n independent signal configurations
+- log10bf: log10 bayes factor for this configuration
+- odds: odds of this configuration
+- k: how many independent signals in this configuration
+- prob_norm_k: probability of this configuration within k independent signals solution
+- h2: snp heritability of this solution.
+- 95% confidence interval limits of snp heritability of this solution.
+- mean: marginalized shrinkage estimates of the posterior effect size mean
+- sd: marginalized shrinkage estimates of the posterior effect standard deviation
 
-Parameter name | Value | Description
---- | --- | ---
-significance threshold | 5e-8 | significance threshold for variants.
-grouping method | ld | Variant grouping method. Plink's ld-clumping for 'ld' and simple location-based clumping for 'simple'.
-alternate significance threshold | 0.01 | significance threshold for grouping. Variants in LD with the lead variant of a group can be included into a group if their p-value is smaller than this, and they are closer to the lead variant than the range threshold.
-grouping locus width | 1.5 Mb | Variants that are at most this far from a lead variant can be grouped with it, provided sufficiently low p-value and high LD.
-Ignore genomic region | 6:23000000-38000000 | Ignore this genomic region from the analysis. In these results, the HLA region was ignored.
-grouping ld threshold | 0.05 | r^2 threshold for ld clumping.
-GWAS Catalog p-value threshold | e5-8 | GWAS Catalog associations were downloaded if they had a p-value lower than this threshold.
+### FINEMAP.region.bgz
+### Summary statistics on number of independent signals in each region
 
-Annotations were acquired from gnoMAD. Finngen Release 4 annotations were used.
+Columns:
+- trait: phenotype
+- region:  region for which the finemapping was ran.
+- h2g snp: heritability of this region
+- h2g_sd: standard deviation of snp heritability of this region
+- h2g_lower95: lower limit of 95% CI for snp heritability
+- h2g_upper95: upper limit of 95% CI for snp heritability
+- log10bf: log bayes factor compared against null (no signals in the region)
+- prob_xSNP: columns for probabilities of different number of independent signals
+- expectedvalue: expectation (average) of the number of signals
 
-## Detailed File Descriptions
 
-### Group Reports (.top.out)
+### PHENOTYPE.FINEMAP.SNP.bgz
+### Summary statistics of variants and in to what credible set they may belong to.
 
-These files contain information about the groups. The used columns are detailed in the following table:
-Column name  |  Description
---- | ---
-locus_id | The group identifier, containing the chromosome, position, reference and alternate alleles of the group lead variant. This is useful if you want to e.g. filter only this group in the variant report.
-chr | group chromosome. All of the variants in this group reside in this chromosome.
-start | The smallest position coordinate in the group.
-end | The largest position coordinate in the group
-enrichment | The Finnish Enrichment value of the group lead variant.
-most_severe_gene | The gene in which the most severe consequence for the group lead variant is in.
-most_severe_consequence | The most severe consequence for the lead variant.
-lead_pval | p-value of the group lead variant.
-matching_pheno_gwas_catalog_hits | Currently empty. In case interesting phenotypes were supplied to the autoreporting tool, this column would contain them in case one or multiple variants in the group had a match from GWAS Catalog.
-other_gwas_hits | This column contains all of the phenotypes, which have been associated with one or more variants in the group, and reported in GWAS Catalog. If this column is empty, it is possible that the variant is novel.
+Columns:
+- trait: phenotype
+- region:  region for which the finemapping was ran.
+- v: variant
+- index: running index
+- rsid: variant id
+- chromosome
+- position
+- allele1
+- allele2
+- maf: minor allele frequency
+- beta: original nbeta
+- se: original se
+- z: original z
+- prob: posterior inclusion probability
+- log10bf: log10 bayes factor
+- mean: marginalized shrinkage estimates of the posterior effect size mean
+- sd: marginalized shrinkage estimates of the posterior effect standard deviation
+- mean_incl: conditional estimates of the posterior effect size mean
+- sd_incl: conditional estimates of the posterior effect size standard deviation
+- p: original p
+- csx: credible set index for given number of causal variants x
 
-### Variant Reports (report.out)
+### PHENOTYPE.REGION.credx files
+### Posterior inclusion probabilities of SNPs in x number of signals solution
 
-These files contain the full reports of the gws variants. They contain the variant basic information, such as p-value, chromosome, position, reference and alternate alleles. They also contain complete variant annotation information, as well as results to the comparison of variants to GWAS Catalog.
-The columns are decsribed in more detail in the following table:
-Column name  |  Description
---- | ---
-\#chrom  | chromosome of variant. from the original summary statistic.
-pos	    | position coordinate of variant. from the original summary statistic.
-ref	    | reference allele. from the original summary statistic.
-alt	    | alternate allele. from the original summary statistic.
-rsids	| variant RSID, if it exists. from the original summary statistic.
-nearest_genes | from the original summary statistic.  
-pval	| variant p-value. from the original summary statistic.
-beta	| variant effect size. from the original summary statistic.
-sebeta	| variant effect standard error. from the original summary statistic.
-maf	    | variant minimum allele frequency. from the original summary statistic.
-maf_case| variant minimum allele frequency in cases. from the original summary statistic.
-maf_cont| variant minimum allele frequency in controls. from the original summary statistic.
-variant| variant identifier.
-locus_id| variant group identifier. Same as in the group reports.
-pos_rmax| largest position in the variant group. Same as in group reports.
-pos_rmin| smallest position in the variant group. Same as in group reports.
-GENOME_* | Annotations from the gnoMAD genome information. Includes columns such as AF(allele frequency), FI_enrichment_nfe (Finnish enrichment agains Non-Finnish Europeans),FI_enrichment_nfe_est(Finnish enrichment agains Non-Finnish Europeans without Estonians).
-EXOME_* | Annotations from the gnoMAD exome information. Includes columns such as AF(allele frequency), FI_enrichment_nfe (Finnish enrichment agains Non-Finnish Europeans),FI_enrichment_nfe_est(Finnish enrichment agains Non-Finnish Europeans without Estonians),FI_enrichment_nfe_swe(Finnish enrichment agains Non-Finnish Europeans without Swedish),FI_enrichment_nfe_est_swe(Finnish enrichment agains Non-Finnish Europeans without Estonians&Swedish populations).
-most_severe_gene | The gene linked to the most severe consequence for this variant.
-most_severe_consequence | most severe consequence linked to this variant.
-FG_INFO_* | FinnGen INFO metric for the variant. In addition to the mean info score FG_INFO, the batch-specific info scores are reported on their own columns.
-pval_trait | The p-value of a matching GWAS Catalog association. Empty if no match.
-variant_hit | The variant identifier for a matching association from GWAS Catalog. Empty if no match.
-trait | matching trait EFO code. Empty if no match.
-trait_name | matching trait plaintext description. Empty if no match.
-
-### Annotated Variants (.annotate.out)
-
-These files contain the filtered, grouped and annotated variants. All of the information is in the full reports.
-The columns are decsribed in more detail in the following table:
-Column name  |  Description
---- | ---
-\#chrom  | chromosome of variant. from the original summary statistic.
-pos	    | position coordinate of variant. from the original summary statistic.
-ref	    | reference allele. from the original summary statistic.
-alt	    | alternate allele. from the original summary statistic.
-rsids	| variant RSID, if it exists. from the original summary statistic.
-nearest_genes | from the original summary statistic.  
-pval	| variant p-value. from the original summary statistic.
-beta	| variant effect size. from the original summary statistic.
-sebeta	| variant effect standard error. from the original summary statistic.
-maf	    | variant minimum allele frequency. from the original summary statistic.
-maf_case| variant minimum allele frequency in cases. from the original summary statistic.
-maf_cont| variant minimum allele frequency in controls. from the original summary statistic.
-variant| variant identifier.
-locus_id| variant group identifier. Same as in the group reports.
-pos_rmax| largest position in the variant group. Same as in group reports.
-pos_rmin| smallest position in the variant group. Same as in group reports.
-GENOME_* | Annotations from the gnoMAD genome information. Includes columns such as AF(allele frequency), FI_enrichment_nfe (Finnish enrichment agains Non-Finnish Europeans),FI_enrichment_nfe_est(Finnish enrichment agains Non-Finnish Europeans without Estonians).
-EXOME_* | Annotations from the gnoMAD exome information. Includes columns such as AF(allele frequency), FI_enrichment_nfe (Finnish enrichment agains Non-Finnish Europeans),FI_enrichment_nfe_est(Finnish enrichment agains Non-Finnish Europeans without Estonians),FI_enrichment_nfe_swe(Finnish enrichment agains Non-Finnish Europeans without Swedish),FI_enrichment_nfe_est_swe(Finnish enrichment agains Non-Finnish Europeans without Estonians&Swedish populations).
-most_severe_gene | The gene linked to the most severe consequence for this variant.
-most_severe_consequence | most severe consequence linked to this variant.
-FG_INFO_* | FinnGen INFO metric for the variant. In addition to the mean info score FG_INFO, the batch-specific info scores are reported on their own columns.
-
-### Filtered Variant Reports (.fetch.out)
-
-These files contain the filtered and grouped variants. All of the information is in the full reports.
-The columns are decsribed in more detail in the following table:
-Column name  |  Description
---- | ---
-\#chrom  | chromosome of variant. from the original summary statistic.
-pos	    | position coordinate of variant. from the original summary statistic.
-ref	    | reference allele. from the original summary statistic.
-alt	    | alternate allele. from the original summary statistic.
-rsids	| variant RSID, if it exists. from the original summary statistic.
-nearest_genes | from the original summary statistic.  
-pval	| variant p-value. from the original summary statistic.
-beta	| variant effect size. from the original summary statistic.
-sebeta	| variant effect standard error. from the original summary statistic.
-maf	    | variant minimum allele frequency. from the original summary statistic.
-maf_case| variant minimum allele frequency in cases. from the original summary statistic.
-maf_cont| variant minimum allele frequency in controls. from the original summary statistic.
-#variant| variant identifier.
-locus_id| variant group identifier. Same as in the group reports.
-pos_rmax| largest position in the variant group. Same as in group reports.
-pos_rmin| smallest position in the variant group. Same as in group reports.
+Columns:
+- index running index
+- credn variant in credible set n
+- probn posterior inclusion probability of variant into credible set n
