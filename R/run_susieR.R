@@ -47,25 +47,20 @@ summarize.susie.cs = function (object, orig_vars,...) {
   variables = data.frame(cbind(1:length(object$pip), object$pip, -1))
   colnames(variables) = c('variable', 'variable_prob', 'cs')
   rownames(variables) = NULL
-
   added_vars <- c()
-
   if (object$null_index > 0) variables = variables[-object$null_index,]
   if (!is.null(object$sets$cs)) {
     cs = data.frame(matrix(NA, length(object$sets$cs), 5))
     colnames(cs) = c('cs', 'cs_log10bf', 'cs_avg_r2', 'cs_min_r2', 'variable')
     for (i in 1:length(object$sets$cs)) {
-
-      this_cs_idx <- variables$variable %in% object$sets$cs[[i]]
-      if (any(this_cs_idx %in% added_vars)) {
+      if (any(object$sets$cs[[i]] %in% added_vars)) {
         print( paste0("Skipping cs ", i , " as there is an overlap between variants in this cs and previous credible sets"))
         print("Removed cs variants:")
-        print(orig_vars[this_cs_idx,], max=length(this_cs_idx))
+        print(orig_vars[object$sets$cs[[i]],], max=length(object$sets$cs[[i]]))
         next
       } else {
-        added_vars <- append(added_vars, this_cs_idx)
+        added_vars <- append(added_vars, object$sets$cs[[i]])
       }
-
       variables$cs[variables$variable %in% object$sets$cs[[i]]] = object$sets$cs_index[[i]]
       cs$cs[i] = object$sets$cs_index[[i]]
       cs$cs_log10bf[i] = object$lbf[cs$cs[i]]
@@ -77,7 +72,7 @@ summarize.susie.cs = function (object, orig_vars,...) {
   } else {
     cs = NULL
   }
-  return(list(vars=variables, cs=cs[!is.na(cs$cs),]))
+  return(list(vars=variables, cs=na.omit(cs)))
 }
 
 susie_bhat_wrapper <- function(df, R, n, L, var_y = 1.0, prior_weights = NULL, min_abs_corr=0.0) {
