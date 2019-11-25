@@ -188,8 +188,9 @@ task susie {
     String zones
     String docker
     Int cpu=8
-    Int mem=500
-
+    Int mem=256
+    Float min_cs_corr
+    
     command <<<
         #!/usr/bin/env bash
         var_y=$(zcat ${phenofile} | awk -v ph=${pheno} \
@@ -224,7 +225,8 @@ task susie {
             --cred ${prefix}.susie.cred \
             --log ${prefix}.susie.log \
             --susie-obj ${prefix}.susie.rds \
-            --save-susie-obj
+            --save-susie-obj \
+            --min_cs_corr ${min_cs_corr}
 
     >>>
 

@@ -41,7 +41,43 @@ compute_yty <- function(beta, se, p, R, n, k) {
   return(median(yty))
 }
 
-susie_bhat_wrapper <- function(beta, se, R, n, L, var_y = 1.0, prior_weights = NULL) {
+summarize.susie.cs = function (object, orig_vars,...) {
+  if (is.null(object$sets))
+    stop("Cannot summarize SuSiE object because credible set information is not available")
+  variables = data.frame(cbind(1:length(object$pip), object$pip, -1))
+  colnames(variables) = c('variable', 'variable_prob', 'cs')
+  rownames(variables) = NULL
+  added_vars <- c()
+  if (object$null_index > 0) variables = variables[-object$null_index,]
+  if (!is.null(object$sets$cs)) {
+    cs = data.frame(matrix(NA, length(object$sets$cs), 5))
+    colnames(cs) = c('cs', 'cs_log10bf', 'cs_avg_r2', 'cs_min_r2', 'variable')
+    for (i in 1:length(object$sets$cs)) {
+      if (any(object$sets$cs[[i]] %in% added_vars)) {
+        print( paste0("Skipping cs ", i , " as there is an overlap between variants in this cs and previous credible sets"))
+        print("Removed cs variants:")
+        print(orig_vars[object$sets$cs[[i]],], max=length(object$sets$cs[[i]]))
+        next
+      } else {
+        added_vars <- append(added_vars, object$sets$cs[[i]])
+      }
+      variables$cs[variables$variable %in% object$sets$cs[[i]]] = object$sets$cs_index[[i]]
+      cs$cs[i] = object$sets$cs_index[[i]]
+      cs$cs_log10bf[i] = object$lbf[cs$cs[i]]
+      cs$cs_avg_r2[i] = object$sets$purity$mean.abs.corr[i]^2
+      cs$cs_min_r2[i] = object$sets$purity$min.abs.corr[i]^2
+      cs$variable[i] = paste(object$sets$cs[[i]], collapse=',')
+    }
+    variables = variables[order(variables$variable_prob, decreasing = T),]
+  } else {
+    cs = NULL
+  }
+  return(list(vars=variables, cs=na.omit(cs)))
+}
+
+susie_bhat_wrapper <- function(df, R, n, L, var_y = 1.0, prior_weights = NULL, min_abs_corr=0.0) {
+  beta <- df$beta
+  se <- df$se
   fitted_bhat <- susie_bhat(
     bhat = beta,
     shat = se,
@@ -54,19 +90,20 @@ susie_bhat_wrapper <- function(beta, se, R, n, L, var_y = 1.0, prior_weights = N
     estimate_residual_variance = TRUE,
     estimate_prior_variance = TRUE,
     standardize = TRUE,
-    check_input = FALSE
+    check_input = FALSE,
+    min_abs_corr=min_abs_corr
   )
-
+  cs_summary <- summarize.susie.cs(fitted_bhat, df)
   variables <-
-    summary(fitted_bhat)$vars %>%
+    cs_summary$vars %>%
       rename(prob = variable_prob) %>%
       arrange(variable) %>%
       mutate(
         mean = susie_get_posterior_mean(fitted_bhat),
         sd = susie_get_posterior_sd(fitted_bhat)
       )
-  cs <- summary(fitted_bhat)$cs
-
+  
+  cs <- cs_summary$cs
   return(list(
     susie_obj = fitted_bhat,
     variables = variables,
@@ -92,6 +129,7 @@ main <- function(args) {
   } else {
     prior_weights <- NULL
   }
+
 
   if (!is.null(args$ld)) {
     R <- load_R(args$ld, df$rsid, dominant=args$dominant)
@@ -119,11 +157,11 @@ main <- function(args) {
     var_y <- NULL
   }
 
-  res <- susie_bhat_wrapper(df$beta, df$se, R, n, L, var_y, prior_weights)
+  res <- susie_bhat_wrapper( df, R, n, L, var_y, prior_weights, min_abs_corr=args$min_cs_corr)
   variables <- cbind(df, res$variables[c("mean", "sd", "prob", "cs")])
   cs <- res$cs
   if (!is.null(cs)) {
-    cs <- cs %>% mutate(cs_size = length(str_split(variable, ",")[[1]])) %>% select(-variable)
+    cs <- cs %>% mutate(cs_size = unlist(lapply(str_split(variable, ","), length))) %>% select(-variable)
   }
   if (args$write_alpha) {
     alpha <- t(res$susie_obj$alpha)
@@ -152,6 +190,7 @@ parser$add_argument("--n-samples", "-n", type = "integer", required = TRUE)
 parser$add_argument("--var-y", type = "double", default = 1.0)
 parser$add_argument("--L", type = "integer", default = 10)
 parser$add_argument("--yty", type = "double")
+parser$add_argument("--min_cs_corr", default=0.5, type = "double")
 parser$add_argument("--compute-yty", action="store_true")
 parser$add_argument("--n-covariates", "-k", type = "integer")
 parser$add_argument("--prior-weights", type = "character")
@@ -194,6 +233,5 @@ if (args$compute_yty & is.null(args$n_covariates)) {
 
 print("Analysis started")
 main(args)
-
 print("Finished!")
 sink()
