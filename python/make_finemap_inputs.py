@@ -137,9 +137,13 @@ def generate_bed(sumstats,
                  grch38=False,
                  exclude_MHC=False,
                  MHC_start=25e6,
-                 MHC_end=34e6):
+                 MHC_end=34e6,
+                 min_p_threshold=None):
     bed_frames = []
     chisq_threshold = sp.stats.norm.ppf(p_threshold / 2) ** 2
+
+    max_chisq_threshold = (sp.stats.norm.ppf(min_p_threshold / 2) ** 2) if min_p_threshold is not None else None
+
     df = pd.concat(map(lambda x: x[x.chisq > chisq_threshold], sumstats)).sort_values('chisq', ascending=False)
     lead_snps = []
 
@@ -165,6 +169,10 @@ def generate_bed(sumstats,
         start = max(start, chr_start)
         end = min(end, chr_end)
         df = df.loc[~((df.chromosome == chrom) & (df.position >= start) & (df.position <= end)), :]
+
+        if max_chisq_threshold is not None and lead_snp.chisq>max_chisq_threshold:
+            continue
+
         bed_frames.append(pd.DataFrame([[CHROM_MAPPING_INT[chrom], int(start), int(end)]], columns=['chrom', 'start', 'end']))
         lead_snps.append(lead_snp)
 
@@ -422,7 +430,7 @@ def main(args):
     if args.bed is None:
         logger.info('Generating bed')
         merged_bed, lead_snps = generate_bed(sumstats, args.p_threshold, args.maf_threshold, args.window, args.grch38,
-                                             args.exclude_MHC, args.MHC_start, args.MHC_end)
+                                             args.exclude_MHC, args.MHC_start, args.MHC_end, args.min_p_threshold)
         lead_snps.to_csv(args.out + '.lead_snps.txt', sep='\t', index=False)
     else:
         i = 0
@@ -520,6 +528,8 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--out', type=str)
     parser.add_argument('--p-threshold', type=float, default=5e-8)
+    parser.add_argument('--min-p-threshold', type=float, help="Minimum lead variant p-value for inclusion in finemapping."
+    + " Useful for adding less significant regions after genome-wide significant finemapping has already been done")
     parser.add_argument('--maf-threshold', type=float, default=0, help='MAF threshold for lead variants')
     parser.add_argument('--window', type=int, default=1.5e6)
     parser.add_argument('--null-region', action='store_true')

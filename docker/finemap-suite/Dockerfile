@@ -1,11 +1,11 @@
-FROM google/cloud-sdk:slim
-
+#FROM google/cloud-sdk:slim
+FROM ubuntu:18.04
 LABEL maintainer="mkanai@broadinstitute.org"
 
 ENV LANG=C.UTF-8 LC_ALL=C.UTF-8
 
 RUN apt-get update --fix-missing && \
-    apt-get install -y wget gawk make zlib1g-dev g++ libopenblas-dev gfortran bedtools && \
+    apt-get install -y wget gawk make zlib1g-dev g++ libopenblas-dev gfortran bedtools python-pip && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
 
