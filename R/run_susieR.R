@@ -44,7 +44,7 @@ compute_yty <- function(beta, se, p, R, n, k) {
 summarize.susie.cs = function (object, orig_vars,...) {
   if (is.null(object$sets))
     stop("Cannot summarize SuSiE object because credible set information is not available")
-      variables = data.frame(cbind(1:length(object$pip), object$pip, -1))
+  variables = data.frame(cbind(1:length(object$pip), object$pip, -1))
   colnames(variables) = c('variable', 'variable_prob', 'cs')
   rownames(variables) = NULL
   added_vars <- c()
@@ -63,7 +63,7 @@ summarize.susie.cs = function (object, orig_vars,...) {
       }
       variables$cs[variables$variable %in% object$sets$cs[[i]]] = object$sets$cs_index[[i]]
       variables[variables$variable %in% object$sets$cs[[i]],"cs_specific_prob"] = object$alpha[object$sets$cs_index[[i]], object$sets$cs[[i]]]
-      
+
       cs$cs[i] = object$sets$cs_index[[i]]
       cs$cs_log10bf[i] = object$lbf[cs$cs[i]]
       cs$cs_avg_r2[i] = object$sets$purity$mean.abs.corr[i]^2
