@@ -19,6 +19,10 @@ task preprocess {
     String beta_col
     String se_col
     String p_col
+    # can be helpful if adding finemapping with relaxed threshold after more stringent has already ben run.
+    # does not include regions with lead snp < this
+    Float p_threshold
+    Float? minimum_pval
 
     command {
 
@@ -44,7 +48,9 @@ task preprocess {
             --var-y 1 \
             --out ${pheno} \
             ${true='--scale-se-by-pval ' false=' ' scale_se_by_pval} \
-            ${true='--x-chromosome' false=' ' x_chromosome}
+            ${true='--x-chromosome' false=' ' x_chromosome} \
+            --p-threshold ${p_threshold} \
+            ${true='--min-p-threshold ' false='' defined(minimum_pval)}${minimum_pval}
 
             res=`cat ${pheno}_had_results`
 
