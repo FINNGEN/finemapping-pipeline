@@ -1,8 +1,8 @@
-    {
+{
     "finemap.zones": "europe-west1-b",
-    "finemap.docker": "eu.gcr.io/finngen-refinery-dev/finemap-suite:1.01",
+    "finemap.docker": "eu.gcr.io/finngen-refinery-dev/finemap-suite:1.02",
     "finemap.sumstats_pattern": "gs://r4_data_west1/saige/summary_stats/raw/{PHENO}.gz",
-    "finemap.phenolistfile": "gs://r4_data_west1/finemap/I9_CARDMYOHYP",
+    "finemap.phenolistfile": "gs://r4_data_west1/finemap/R4_PHENOS.txt",
     "finemap.phenotypes": "gs://r4_data/pheno/R4_COV_PHENO_V1.txt.gz",
     "finemap.preprocess.cpu": 1,
     "finemap.preprocess.mem": 26,
@@ -17,17 +17,19 @@
     "finemap.preprocess.p_col": "p.value",
     "finemap.preprocess.scale_se_by_pval": true,
     "finemap.preprocess.x_chromosome": true,
+    "finemap.preprocess.p_threshold": 0.0000005,
+    "finemap.ldstore_finemap.susie.min_cs_corr":0,
     "finemap.ldstore_finemap.ldstore.sample": "gs://r4_data/R4_183694_samples.sample",
     "finemap.ldstore_finemap.ldstore.bgen_pattern": "gs://r4_data_west1/bgen/R4_{CHR}.bgen",
     "finemap.ldstore_finemap.ldstore.cpu": 16,
     "finemap.ldstore_finemap.ldstore.mem": 52,
     "finemap.ldstore_finemap.n_causal_snps": 10,
+    "finemap.ldstore_finemap.finemap.corr_group": 0.9,
     "finemap.ldstore_finemap.finemap.cpu": 8,
     "finemap.ldstore_finemap.finemap.mem": 52,
     "finemap.ldstore_finemap.susie.docker": "eu.gcr.io/finngen-refinery-dev/susie:0.8.1.0545",
     "finemap.ldstore_finemap.susie.cpu": 8,
     "finemap.ldstore_finemap.susie.mem": 208,
-    "finemap.ldstore_finemap.susie.min_cs_corr": 0.0,
     "finemap.ldstore_finemap.combine.cpu": 1,
     "finemap.ldstore_finemap.combine.mem": 7
 }
