@@ -28,8 +28,8 @@ task preprocess {
 
         make_finemap_inputs.py \
             --sumstats ${sumstats} \
-            --rsid-col ${rsid_col} \
-            --chromosome-col ${chromosome_col} \
+            --rsid-col "${rsid_col}" \
+            --chromosome-col "${chromosome_col}" \
             --position-col ${position_col} \
             --allele1-col ${allele1_col} \
             --allele2-col ${allele2_col} \
@@ -37,6 +37,7 @@ task preprocess {
             --beta-col ${beta_col} \
             --se-col ${se_col} \
             --p-col ${p_col} \
+            --set-rsid \
             --grch38 \
             --exclude-MHC \
             --no-upload \
