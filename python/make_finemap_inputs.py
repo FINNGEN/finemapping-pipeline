@@ -56,7 +56,8 @@ def read_sumstats(path,
                   set_rsid=False,
                   flip_beta=False,
                   grch38=False,
-                  scale_se_by_pval=False):
+                  scale_se_by_pval=False,
+                  extra_cols=None):
     logger.info("Loading sumstats: " + path)
 
     sumstats = pd.read_csv(
@@ -73,6 +74,15 @@ def read_sumstats(path,
         beta_col: 'beta',
         se_col: 'se'
     })
+
+    output_cols = FINEMAP_COLUMNS
+    if extra_cols is not None:
+        output_cols = FINEMAP_COLUMNS + extra_cols
+    missing = [ c for c in output_cols if c not in sumstats.columns ]
+    if len(missing) > 0:
+        print("All required columns not present in the data. Missing columns: " + " ".join(missing))
+        raise Exception("All required columns not present in the data. Missing columns: " + " ".join(missing))
+
 
     if grch38:
         sumstats['chromosome'] = sumstats.chromosome.str.replace('^chr', '')
@@ -420,17 +430,9 @@ def main(args):
             set_rsid=args.set_rsid[i],
             flip_beta=args.flip_beta[i],
             grch38=args.grch38,
-            scale_se_by_pval=args.scale_se_by_pval[i]
+            scale_se_by_pval=args.scale_se_by_pval[i],
+            extra_cols=args.extra_cols
         ), enumerate(args.sumstats))
-
-    output_cols = FINEMAP_COLUMNS
-    if args.extra_cols is not None:
-        output_cols = FINEMAP_COLUMNS + extra_cols
-    missing = [ c for c in output_cols if c not in df.columns ]
-    if len(missing) > 0:
-        print("All required columns not present in the data. Missing columns: " + " ".join(missing))
-        raise Exception("All required columns not present in the data. Missing columns: " + " ".join(missing))
-
 
     if args.bed is None:
         logger.info('Generating bed')
