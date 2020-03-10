@@ -80,9 +80,8 @@ def read_sumstats(path,
         output_cols = FINEMAP_COLUMNS + extra_cols
     missing = [ c for c in output_cols if c not in sumstats.columns ]
     if len(missing) > 0:
-        print("All required columns not present in the data. Missing columns: " + " ".join(missing))
+        logger.error("All required columns not present in the data. Missing columns: " + " ".join(missing))
         raise Exception("All required columns not present in the data. Missing columns: " + " ".join(missing))
-
 
     if grch38:
         sumstats['chromosome'] = sumstats.chromosome.str.replace('^chr', '')
