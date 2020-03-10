@@ -60,11 +60,23 @@ def read_sumstats(path,
                   extra_cols=None):
     logger.info("Loading sumstats: " + path)
 
+
     sumstats = pd.read_csv(
         path,
         delim_whitespace=True,
         dtype={chromosome_col: str, position_col: int},
         compression='gzip' if path.endswith('gz') else 'infer')
+
+    req_cols = [chromosome_col,position_col, allele1_col, allele2_col, beta_col,se_col]
+    if not set_rsid:
+        req_cols.append(rsid_col)
+    if extra_cols is not None:
+        output_cols = FINEMAP_COLUMNS + extra_cols
+    missing = [ c for c in output_cols if c not in sumstats.columns ]
+    if len(missing) > 0:
+        logger.error("All required columns not present in the data. Missing columns: " + " ".join(missing))
+        raise Exception("All required columns not present in the data. Missing columns: " + " ".join(missing))
+
     sumstats = sumstats.rename(index=str, columns={
         rsid_col: 'rsid',
         chromosome_col: 'chromosome',
@@ -75,13 +87,7 @@ def read_sumstats(path,
         se_col: 'se'
     })
 
-    output_cols = FINEMAP_COLUMNS
-    if extra_cols is not None:
-        output_cols = FINEMAP_COLUMNS + extra_cols
-    missing = [ c for c in output_cols if c not in sumstats.columns ]
-    if len(missing) > 0:
-        logger.error("All required columns not present in the data. Missing columns: " + " ".join(missing))
-        raise Exception("All required columns not present in the data. Missing columns: " + " ".join(missing))
+
 
     if grch38:
         sumstats['chromosome'] = sumstats.chromosome.str.replace('^chr', '')
