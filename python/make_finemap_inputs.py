@@ -193,10 +193,6 @@ def output_z(df, prefix, boundaries, grch38=False, no_output=True, extra_cols=No
     if grch38:
         df['chromosome'] = 'chr' + df.chromosome
 
-    output_cols = FINEMAP_COLUMNS
-    if extra_cols is not None:
-        output_cols = FINEMAP_COLUMNS + extra_cols
-
     if not no_output:
         logger.info("Writing z file: " + outname)
         df[output_cols].to_csv(outname, sep=' ', float_format='%.6g', na_rep='NA', index=False)
@@ -426,6 +422,15 @@ def main(args):
             grch38=args.grch38,
             scale_se_by_pval=args.scale_se_by_pval[i]
         ), enumerate(args.sumstats))
+
+    output_cols = FINEMAP_COLUMNS
+    if args.extra_cols is not None:
+        output_cols = FINEMAP_COLUMNS + extra_cols
+    missing = [ c for c in output_cols if c not in df.columns ]
+    if len(missing) > 0:
+        print("All required columns not present in the data. Missing columns: " + " ".join(missing))
+        raise Exception("All required columns not present in the data. Missing columns: " + " ".join(missing))
+
 
     if args.bed is None:
         logger.info('Generating bed')
