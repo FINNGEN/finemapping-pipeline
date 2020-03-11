@@ -56,14 +56,27 @@ def read_sumstats(path,
                   set_rsid=False,
                   flip_beta=False,
                   grch38=False,
-                  scale_se_by_pval=False):
+                  scale_se_by_pval=False,
+                  extra_cols=None):
     logger.info("Loading sumstats: " + path)
+
 
     sumstats = pd.read_csv(
         path,
         delim_whitespace=True,
         dtype={chromosome_col: str, position_col: int},
         compression='gzip' if path.endswith('gz') else 'infer')
+
+    req_cols = [chromosome_col,position_col, allele1_col, allele2_col, beta_col,se_col]
+    if not set_rsid:
+        req_cols.append(rsid_col)
+    if extra_cols is not None:
+        output_cols = FINEMAP_COLUMNS + extra_cols
+    missing = [ c for c in output_cols if c not in sumstats.columns ]
+    if len(missing) > 0:
+        logger.error("All required columns not present in the data. Missing columns: " + " ".join(missing))
+        raise Exception("All required columns not present in the data. Missing columns: " + " ".join(missing))
+
     sumstats = sumstats.rename(index=str, columns={
         rsid_col: 'rsid',
         chromosome_col: 'chromosome',
@@ -73,6 +86,8 @@ def read_sumstats(path,
         beta_col: 'beta',
         se_col: 'se'
     })
+
+
 
     if grch38:
         sumstats['chromosome'] = sumstats.chromosome.str.replace('^chr', '')
@@ -192,10 +207,6 @@ def output_z(df, prefix, boundaries, grch38=False, no_output=True, extra_cols=No
                                                boundaries[i + 1] % CHROM_CONSTANT)
     if grch38:
         df['chromosome'] = 'chr' + df.chromosome
-
-    output_cols = FINEMAP_COLUMNS
-    if extra_cols is not None:
-        output_cols = FINEMAP_COLUMNS + extra_cols
 
     if not no_output:
         logger.info("Writing z file: " + outname)
@@ -424,7 +435,8 @@ def main(args):
             set_rsid=args.set_rsid[i],
             flip_beta=args.flip_beta[i],
             grch38=args.grch38,
-            scale_se_by_pval=args.scale_se_by_pval[i]
+            scale_se_by_pval=args.scale_se_by_pval[i],
+            extra_cols=args.extra_cols
         ), enumerate(args.sumstats))
 
     if args.bed is None:
