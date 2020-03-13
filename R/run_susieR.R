@@ -9,12 +9,12 @@ library(stringr)
 library(susieR)
 
 load_R <- function(path, snp, dominant=False) {
-  if (tools::file_ext(path) == "npz") {
-    require(reticulate)
-    np <- import("numpy")
-    R <- np$load(path)["ld"]
-  } else {
+  if (tools::file_ext(path) == "ld") {
+    R <- fread(path, header = FALSE)
+  } else if(tools::file_ext(path) %in% c("gz", "bgz")) {
     R <- fread(cmd = paste("zcat", path), header = FALSE)
+  } else{
+    stop("LD matrix file extension is not supported")
   }
 
   R <- as.matrix(R)
@@ -77,10 +77,10 @@ summarize.susie.cs = function (object, orig_vars,...) {
   return(list(vars=variables, cs=na.omit(cs)))
 }
 
-susie_bhat_wrapper <- function(df, R, n, L, var_y = 1.0, prior_weights = NULL, min_abs_corr=0.0) {
+susie_ss_wrapper <- function(df, R, n, L, var_y = 1.0, prior_weights = NULL, min_abs_corr=0.0) {
   beta <- df$beta
   se <- df$se
-  fitted_bhat <- susie_bhat(
+  fitted_bhat <- susie_suff_stat(
     bhat = beta,
     shat = se,
     R = R,
@@ -159,7 +159,7 @@ main <- function(args) {
     var_y <- NULL
   }
 
-  res <- susie_bhat_wrapper( df, R, n, L, var_y, prior_weights, min_abs_corr=args$min_cs_corr)
+  res <- susie_ss_wrapper(df, R, n, L, var_y, prior_weights, min_abs_corr=args$min_cs_corr)
   variables <- cbind(df, res$variables[c("mean", "sd", "prob", "cs")])
   cs <- res$cs
   if (!is.null(cs)) {
@@ -234,6 +234,11 @@ if (args$compute_yty & is.null(args$n_covariates)) {
 }
 
 print("Analysis started")
-main(args)
-print("Finished!")
-sink()
+tryCatch({
+  main(args)
+}, error = function(e) {
+  sink()
+  message(as.character(e))
+  sink(type="message")
+  stop(e)
+})
