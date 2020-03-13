@@ -1,16 +1,20 @@
-#FROM google/cloud-sdk:slim
-FROM ubuntu:18.04
+FROM google/cloud-sdk:slim
+# FROM ubuntu:18.04
 LABEL maintainer="mkanai@broadinstitute.org"
 
 ENV LANG=C.UTF-8 LC_ALL=C.UTF-8
 
-RUN apt-get update --fix-missing && \
-    apt-get install -y wget gawk make zlib1g-dev g++ libopenblas-dev gfortran bedtools python-pip && \
+# Install gcsfuse
+RUN export GCSFUSE_REPO=gcsfuse-`lsb_release -c -s` && \
+    echo "deb http://packages.cloud.google.com/apt $GCSFUSE_REPO main" | tee /etc/apt/sources.list.d/gcsfuse.list && \
+    curl https://packages.cloud.google.com/apt/doc/apt-key.gpg | apt-key add - && \
+    apt-get update --fix-missing && \
+    apt-get install -y wget gawk make zlib1g-dev g++ libopenblas-dev gfortran bedtools python-pip gcsfuse && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
 
 # HTSLIB (for bgzip)
-ENV HTSLIB_VERSION 1.9
+ENV HTSLIB_VERSION 1.10.2
 RUN wget https://github.com/samtools/htslib/releases/download/${HTSLIB_VERSION}/htslib-${HTSLIB_VERSION}.tar.bz2 -P ~ && \
     tar xjvf ~/htslib-${HTSLIB_VERSION}.tar.bz2 -C ~ && \
     cd ~/htslib-${HTSLIB_VERSION} && \
@@ -31,20 +35,23 @@ ADD ./docker/finemap-suite/ldstore_${LDSTORE_VERSION}_x86_64 /usr/bin/ldstore
 # finemap-suite:0.2 -- v1.4_0503
 # finemap-suite:0.4 -- v1.4_0508
 # finemap-suite:0.5 -- v1.4b_0510
-ENV FINEMAP_VERSION v1.4_0510
-ADD ./docker/finemap-suite/finemap_${FINEMAP_VERSION}_x86_64 /usr/bin/finemap
-# RUN wget --quiet http://www.christianbenner.com/finemap_${FINEMAP_VERSION}_x86_64.tgz -P ~ && \
-#     tar xf ~/finemap_${FINEMAP_VERSION}_x86_64.tgz -C ~ && \
-#     cp ~/finemap_${FINEMAP_VERSION}_x86_64/finemap_${FINEMAP_VERSION}_x86_64 /usr/bin/finemap && \
-#     rm -r ~/finemap_${FINEMAP_VERSION}_x86_64*
+# finemap-suite:1.1 -- v1.4 (public)
+ENV FINEMAP_VERSION v1.4
+# ADD ./docker/finemap-suite/finemap_${FINEMAP_VERSION}_x86_64 /usr/bin/finemap
+RUN wget --quiet http://www.christianbenner.com/finemap_${FINEMAP_VERSION}_x86_64.tgz -P ~ && \
+    tar xf ~/finemap_${FINEMAP_VERSION}_x86_64.tgz -C ~ && \
+    cp ~/finemap_${FINEMAP_VERSION}_x86_64/finemap_${FINEMAP_VERSION}_x86_64 /usr/bin/finemap && \
+    rm -r ~/finemap_${FINEMAP_VERSION}_x86_64*
 
 # for pysam
 ENV HTSLIB_CONFIGURE_OPTIONS "--disable-bz2 --disable-lzma"
 # Add scripts
-RUN pip install --no-cache numpy scipy pandas pybedtools
+RUN pip install --no-cache cython && \
+    pip install --no-cache numpy scipy pandas pybedtools
 ENV PYTHONPATH /home:${PYTHONPATH}
 COPY python/make_finemap_inputs.py /usr/local/bin/
 COPY python/utils.py /home/
+RUN chmod +x /usr/local/bin/make_finemap_inputs.py
 
 VOLUME [ "/root/.config/gcloud" ]
 CMD [ "/bin/bash" ]
