@@ -7,8 +7,10 @@ task ldstore {
     String incl = pheno + ".incl"
     String prefix = basename(zfile, ".z")
     String chrom = sub(sub(prefix, pheno + "\\.chr", ""), "\\.[0-9\\-]+$", "")
-    File bgen = sub(bgen_pattern,"\\{CHR\\}",chrom)
-    File bgi = bgen + ".bgi"
+    String bgenbucket = sub(sub(bgen_pattern, "^gs://", ""), "/.+$", "")
+    String mountpoint = "/cromwell_root/gcsfuse/" + bgenbucket
+    String bgen = sub(sub(bgen_pattern, "\\{CHR\\}", chrom), "^gs://" + bgenbucket, mountpoint)
+    File bgi = sub(bgen_pattern, "\\{CHR\\}", chrom) + ".bgi"
     String master = prefix + ".master"
     String n_samples_file = prefix + ".n_samples.txt"
     String zones
@@ -18,7 +20,12 @@ task ldstore {
 
     command <<<
         #!/usr/bin/env bash
-        catcmd="zcat"
+
+        # mount bgen bucket
+        mkdir -p ${mountpoint}
+        gcsfuse ${bgenbucket} ${mountpoint}
+
+        catcmd="cat"
         if [[ $phenofile == *.gz ]] || [[ $phenofile == *.bgz ]]
         then
          catcmd="zcat"
@@ -52,10 +59,16 @@ task ldstore {
             print "z", "bgen", "bgi", "bcor", "ld", "sample", "incl", "n_samples"
             print "${zfile}", "${bgen}", "${bgi}", "${prefix}.bcor", "${prefix}.ld", "${sample}", "${incl}", n_samples
         }' > ${master}
-        ldstore --in-files ${master} --write-bcor --n-threads ${cpu}
+
+        n_threads=`grep -c ^processor /proc/cpuinfo`
+        ldstore --in-files ${master} --write-bcor --n-threads ${n_threads}
         ldstore --in-files ${master} --bcor-to-text
         bgzip -@ ${cpu} ${prefix}.ld
         mv ${prefix}.ld.gz ${prefix}.ld.bgz
+
+        echo "Finished"
+        fusermount -u ${mountpoint}
+        exit 0
     >>>
 
     output {
@@ -190,7 +203,7 @@ task susie {
     Int cpu=8
     Int mem=256
     Float min_cs_corr
-    
+
     command <<<
         #!/usr/bin/env bash
         var_y=$(zcat ${phenofile} | awk -v ph=${pheno} \
