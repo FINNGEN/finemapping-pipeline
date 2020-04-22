@@ -17,6 +17,7 @@ task ldstore {
     String docker
     Int cpu
     Int mem
+    String dollar = "$"
 
     command <<<
         #!/usr/bin/env bash
@@ -61,7 +62,7 @@ task ldstore {
         }' > ${master}
 
         n_threads=`grep -c ^processor /proc/cpuinfo`
-        ldstore --in-files ${master} --write-bcor --n-threads ${n_threads}
+        ldstore --in-files ${master} --write-bcor --n-threads ${dollar}n_threads
         ldstore --in-files ${master} --bcor-to-text
         bgzip -@ ${cpu} ${prefix}.ld
         mv ${prefix}.ld.gz ${prefix}.ld.bgz
