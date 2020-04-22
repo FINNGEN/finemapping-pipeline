@@ -18,6 +18,7 @@
     "finemap.preprocess.scale_se_by_pval": true,
     "finemap.preprocess.x_chromosome": true,
     "finemap.preprocess.p_threshold": 0.000001,
+    "finemap.preprocess.r2_threshold": 0.2,
     "finemap.ldstore_finemap.susie.min_cs_corr":0,
     "finemap.ldstore_finemap.ldstore.sample": "gs://r5_data/R5_224737_samples.sample",
     "finemap.ldstore_finemap.ldstore.bgen_pattern": "gs://r5_data/bgen/chrom/R5_{CHR}.bgen",

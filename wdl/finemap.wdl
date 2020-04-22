@@ -22,6 +22,7 @@ task preprocess {
     # can be helpful if adding finemapping with relaxed threshold after more stringent has already ben run.
     # does not include regions with lead snp < this
     Float p_threshold
+    Float r2_threshold
     Float? minimum_pval
 
     command {
@@ -37,6 +38,7 @@ task preprocess {
             --beta-col ${beta_col} \
             --se-col ${se_col} \
             --p-col ${p_col} \
+            --r2-threshold ${r2_threshold} \
             --set-rsid \
             --grch38 \
             --exclude-MHC \
@@ -79,7 +81,7 @@ task preprocess {
         disks: "local-disk 20 HDD"
         zones: "${zones}"
         preemptible: 2
-        noAddress: true
+        noAddress: false
     }
 }
 
