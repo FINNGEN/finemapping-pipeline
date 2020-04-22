@@ -33,7 +33,7 @@ CHROM_MAPPING_INT = dict([(str(i), i) for i in range(1, 24)] + [('0' + str(i), i
 # mapping chromosome string (incluing 01-09, 23, and X) and correct string
 CHROM_MAPPING_STR = dict([(str(i), str(i)) for i in range(1, 23)] + [('0' + str(i), str(i)) for i in range(1, 10)] +
                          [('X', 'X'), ('23', 'X')])
-FINEMAP_COLUMNS = ['rsid', 'chromosome', 'position', 'allele1', 'allele2', 'maf', 'beta', 'se', 'p']
+FINEMAP_COLUMNS = ['chromosome', 'position', 'allele1', 'allele2', 'maf', 'beta', 'se']
 
 
 def convert_chrpos(chromosome, position):
@@ -67,16 +67,6 @@ def read_sumstats(path,
         dtype={chromosome_col: str, position_col: int},
         compression='gzip' if path.endswith('gz') else 'infer')
 
-    req_cols = [chromosome_col,position_col, allele1_col, allele2_col, beta_col,se_col]
-    if not set_rsid:
-        req_cols.append(rsid_col)
-    if extra_cols is not None:
-        output_cols = FINEMAP_COLUMNS + extra_cols
-    missing = [ c for c in output_cols if c not in sumstats.columns ]
-    if len(missing) > 0:
-        logger.error("All required columns not present in the data. Missing columns: " + " ".join(missing))
-        raise Exception("All required columns not present in the data. Missing columns: " + " ".join(missing))
-
     sumstats = sumstats.rename(index=str, columns={
         rsid_col: 'rsid',
         chromosome_col: 'chromosome',
@@ -87,7 +77,13 @@ def read_sumstats(path,
         se_col: 'se'
     })
 
-
+    output_cols = FINEMAP_COLUMNS
+    if extra_cols is not None:
+        output_cols = FINEMAP_COLUMNS + extra_cols
+    missing = [ c for c in output_cols if c not in sumstats.columns ]
+    if len(missing) > 0:
+        logger.error("All required columns not present in the data. Missing columns: " + " ".join(missing))
+        raise Exception("All required columns not present in the data. Missing columns: " + " ".join(missing))
 
     if grch38:
         sumstats['chromosome'] = sumstats.chromosome.str.replace('^chr', '')
