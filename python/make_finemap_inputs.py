@@ -8,6 +8,7 @@ import os.path
 import json
 import numpy as np
 import scipy as sp
+import urllib2
 from scipy import stats
 import pandas as pd
 import pybedtools
@@ -133,6 +134,7 @@ def read_sumstats(path,
 def generate_bed(sumstats,
                  p_threshold=5e-8,
                  maf_threshold=0,
+                 r2_threshold=0,
                  window=0,
                  grch38=False,
                  exclude_MHC=False,
@@ -148,6 +150,9 @@ def generate_bed(sumstats,
     lead_snps = []
 
     build = 'hg19' if not grch38 else 'hg38'
+
+    # window for ld fetch needs to be larger than the actual window as tomahawk and as such the api currently doesn't give the exact window
+    ld_url_template = 'http://api.finngen.fi/api/ld?variant=VARIANT&window=5000000&panel=sisu3&r2_thresh={}'.format(r2_threshold)
 
     # exclude significant SNPs in the MHC region
     MHC_idx = (df.chromosome == '6') & (df.position >= MHC_start) & (df.position <= MHC_end)
@@ -173,11 +178,34 @@ def generate_bed(sumstats,
         if max_chisq_threshold is not None and lead_snp.chisq>max_chisq_threshold:
             continue
 
-        bed_frames.append(pd.DataFrame([[CHROM_MAPPING_INT[chrom], int(start), int(end)]], columns=['chrom', 'start', 'end']))
+        bed_frames.append(pd.DataFrame([[CHROM_MAPPING_INT[chrom], int(start), int(end), lead_snp.rsid]], columns=['chrom', 'start', 'end', 'rsid']))
         lead_snps.append(lead_snp)
 
     if len(bed_frames) > 0:
-        bed = BedTool.from_dataframe(pd.concat(bed_frames).sort_values(['chrom', 'start'])).merge()
+        bed_frames = sorted(bed_frames, key=lambda f: (f['chrom'][0], f['start'][0]))
+        if r2_threshold > 0:
+            # if lead variants of two overlapping regions are in ld, merge them
+            for i in range(len(bed_frames)-1):
+                f1 = bed_frames[i]
+                f2 = bed_frames[i+1]
+                if f1['chrom'][0] == f2['chrom'][0] and f1['end'][0] >= f2['start'][0]:
+                    v1 = f1['rsid'][0].replace('chr', '').replace('_', ':')
+                    v2 = f2['rsid'][0].replace('chr', '').replace('_', ':')
+                    url = ld_url_template.replace('VARIANT', v1)
+                    try:
+                        contents = urllib2.urlopen(url).read()
+                    except Exception:
+                        logger.error('failed to get {}'.format(url))
+                        raise
+                    in_ld = len([v for v in json.loads(contents)['ld'] if v['variation2'] == v2]) > 0
+                    logger.info('\t'.join([v1, v2, str(in_ld)]))
+                    if in_ld:
+                        f1['end'] = f2['end']
+                        f2['start'] = f1['start']
+                        for j in range(i):
+                            if bed_frames[j]['chrom'][0] == f1['chrom'][0] and bed_frames[j]['start'][0] == f1['start'][0]:
+                                bed_frames[j]['end'] = f1['end']
+        bed = BedTool.from_dataframe(pd.concat(bed_frames))#.sort_values(['chrom', 'start'])).merge()
         lead_snps = pd.concat(lead_snps, axis=1).T
     else:
         bed = BedTool.from_dataframe( pd.DataFrame(columns=['chrom', 'start', 'end']))
@@ -429,7 +457,7 @@ def main(args):
 
     if args.bed is None:
         logger.info('Generating bed')
-        merged_bed, lead_snps = generate_bed(sumstats, args.p_threshold, args.maf_threshold, args.window, args.grch38,
+        merged_bed, lead_snps = generate_bed(sumstats, args.p_threshold, args.maf_threshold, args.r2_threshold, args.window, args.grch38,
                                              args.exclude_MHC, args.MHC_start, args.MHC_end, args.min_p_threshold)
         lead_snps.to_csv(args.out + '.lead_snps.txt', sep='\t', index=False)
     else:
@@ -472,24 +500,48 @@ def main(args):
     boundaries = pd.concat([convert_chrpos(all_bed.chrom, all_bed.start),
                             convert_chrpos(all_bed.chrom, all_bed.end)]).sort_values().unique()
     logger.debug(boundaries)
+    
+    merged_bed['chrpos_start'] = merged_bed.apply(lambda x: convert_chrpos(x['chrom'], x['start']), axis=1)
+    merged_bed['chrpos_end'] = merged_bed.apply(lambda x: convert_chrpos(x['chrom'], x['end']), axis=1)
+    bins = zip(merged_bed['chrpos_start'].tolist(), merged_bed['chrpos_end'].tolist())
 
+    for si, x in enumerate(sumstats):
+        for i in range(len(bins)):
+            x['reg'] = pd.cut(x.chrpos, bins[i], right=False, labels=False, include_lowest=True)
+            df = x.dropna(subset=['reg'])
+            outname = args.prefix[si] + '.chr{}.{}-{}.z'.format(CHROM_MAPPING_STR[df.chromosome.iloc[0]],
+                                                                bins[i][0] % CHROM_CONSTANT,
+                                                                bins[i][1] % CHROM_CONSTANT)
+            if args.grch38:
+                df['chromosome'] = 'chr' + df.chromosome
+            output_cols = FINEMAP_COLUMNS
+            if args.extra_cols is not None:
+                output_cols = FINEMAP_COLUMNS + extra_cols
+            if not args.no_output:
+                logger.info("Writing z file: " + outname)
+                df[output_cols].to_csv(outname, sep=' ', float_format='%.6g', na_rep='NA', index=False)
+
+    
+    
     # assign regions
-    sumstats = map(
-        lambda x: x.assign(region=pd.cut(x.chrpos, boundaries, right=False, labels=False, include_lowest=True)),
-        sumstats)
-    if not args.null_region:
-        sig_regions = pd.cut(
-            convert_chrpos(merged_bed.chrom, merged_bed.start),
-            boundaries,
-            right=False,
-            labels=False,
-            include_lowest=True).unique()
-        sumstats = map(lambda x: x[x.region.isin(sig_regions)], sumstats)
-    else:
-        merged_bed = all_bed
+    # sumstats = map(
+    #     lambda x: x.assign(region=pd.cut(x.chrpos, boundaries, right=False, labels=False, include_lowest=True)),
+    #     sumstats)
+    # if not args.null_region:
+    #     sig_regions = pd.cut(
+    #         convert_chrpos(merged_bed.chrom, merged_bed.start),
+    #         boundaries,
+    #         right=False,
+    #         labels=False,
+    #         include_lowest=True).unique()
+    #     sumstats = map(lambda x: x[x.region.isin(sig_regions)], sumstats)
+    # else:
+    #     merged_bed = all_bed
 
     if args.bed is None:
         merged_bed.to_csv(args.out + '.bed', sep='\t', index=False, header=False)
+
+    quit()
 
     for i, x in enumerate(sumstats):
         input_z = x.groupby('region').apply(
@@ -531,6 +583,7 @@ if __name__ == '__main__':
     parser.add_argument('--min-p-threshold', type=float, help="Minimum lead variant p-value for inclusion in finemapping."
     + " Useful for adding less significant regions after genome-wide significant finemapping has already been done")
     parser.add_argument('--maf-threshold', type=float, default=0, help='MAF threshold for lead variants')
+    parser.add_argument('--r2-threshold', type=float, default=0, help='LD r2 threshold for lead variants')
     parser.add_argument('--window', type=int, default=1.5e6)
     parser.add_argument('--null-region', action='store_true')
     parser.add_argument('--no-upload', action='store_true')
