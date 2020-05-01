@@ -23,7 +23,7 @@ task ldstore {
 
         # mount bgen bucket
         mkdir -p ${mountpoint}
-        gcsfuse ${bgenbucket} ${mountpoint}
+        gcsfuse --implicit-dirs ${bgenbucket} ${mountpoint}
 
         catcmd="cat"
         if [[ $phenofile == *.gz ]] || [[ $phenofile == *.bgz ]]
@@ -61,7 +61,7 @@ task ldstore {
         }' > ${master}
 
         n_threads=`grep -c ^processor /proc/cpuinfo`
-        ldstore --in-files ${master} --write-bcor --n-threads ${n_threads}
+        ldstore --in-files ${master} --write-bcor --n-threads $n_threads
         ldstore --in-files ${master} --bcor-to-text
         bgzip -@ ${cpu} ${prefix}.ld
         mv ${prefix}.ld.gz ${prefix}.ld.bgz
