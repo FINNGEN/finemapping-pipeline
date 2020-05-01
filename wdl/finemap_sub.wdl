@@ -20,13 +20,12 @@ task ldstore {
 
     command <<<
         #!/usr/bin/env bash
-
         # mount bgen bucket
         mkdir -p ${mountpoint}
         gcsfuse --implicit-dirs ${bgenbucket} ${mountpoint}
 
         catcmd="cat"
-        if [[ $phenofile == *.gz ]] || [[ $phenofile == *.bgz ]]
+        if [[ ${phenofile} == *.gz ]] || [[! ${phenofile} == *.bgz ]]
         then
          catcmd="zcat"
         fi
