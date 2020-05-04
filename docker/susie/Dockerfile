@@ -9,8 +9,8 @@ RUN apt-get update --fix-missing && \
     rm -rf /var/lib/apt/lists/*
 
 # SUSIE
-# dev version: 0.9.0.0581
-ENV SUSIE_VERSION ef4b012
+# dev version: 0.9.1.0
+ENV SUSIE_VERSION e862365
 RUN Rscript -e 'install.packages(c("devtools", "argparse", "dplyr", "stringr", "data.table", "here", "R.utils"), noCache = TRUE, repos="https://cloud.r-project.org")' && \
     Rscript -e "Sys.setenv(TAR = \"/bin/tar\"); devtools::install_github(\"stephenslab/susieR@${SUSIE_VERSION}\")"
 
