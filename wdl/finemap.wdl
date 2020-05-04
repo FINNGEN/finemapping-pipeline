@@ -45,6 +45,7 @@ task preprocess {
             --localdir '' \
             --input-samples '' \
             --input-incl-samples '' \
+            --prefix ${pheno} \
             -n 1 \
             --var-y 1 \
             --out ${pheno} \
