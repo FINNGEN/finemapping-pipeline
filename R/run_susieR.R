@@ -89,7 +89,7 @@ susie_ss_wrapper <- function(df, R, n, L, var_y = 1.0, prior_weights = NULL, min
     L = L,
     prior_weights = prior_weights,
     scaled_prior_variance = 0.1,
-    estimate_residual_variance = TRUE,
+    estimate_residual_variance = FALSE,
     estimate_prior_variance = TRUE,
     standardize = TRUE,
     check_input = FALSE,

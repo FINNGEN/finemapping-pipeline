@@ -25,7 +25,7 @@ task ldstore {
         gcsfuse --implicit-dirs ${bgenbucket} ${mountpoint}
 
         catcmd="cat"
-        if [[ ${phenofile} == *.gz ]] || [[! ${phenofile} == *.bgz ]]
+        if [[ ${phenofile} == *.gz ]] || [[ ${phenofile} == *.bgz ]]
         then
          catcmd="zcat"
         fi
