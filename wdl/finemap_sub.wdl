@@ -22,13 +22,12 @@ task ldstore {
 
     command <<<
         #!/usr/bin/env bash
-
         # mount bgen bucket
         mkdir -p ${mountpoint}
 
         if [[ ${enable_fuse} == "true" ]]
         then
-            gcsfuse ${bgenbucket} ${mountpoint}
+            gcsfuse --implicit-dirs ${bgenbucket} ${mountpoint}
         else
             gsutil cp ${bgen_gs} ${mountpoint}
         fi

@@ -71,6 +71,7 @@ def read_sumstats(path,
     if extra_cols is not None:
         req_cols = req_cols + extra_cols
     missing = [c for c in req_cols if c not in sumstats.columns]
+
     if len(missing) > 0:
         logger.error("All required columns not present in the data. Missing columns: " + " ".join(missing))
         raise Exception("All required columns not present in the data. Missing columns: " + " ".join(missing))
@@ -204,11 +205,9 @@ def output_z(df, prefix, boundaries, grch38=False, no_output=True, extra_cols=No
                                                boundaries[i + 1] % CHROM_CONSTANT)
     if grch38:
         df['chromosome'] = 'chr' + df.chromosome
-
     output_cols = FINEMAP_COLUMNS
     if extra_cols is not None:
-        output_cols = FINEMAP_COLUMNS + extra_cols
-
+        output_cols = output_cols + extra_cols
     if not no_output:
         logger.info("Writing z file: " + outname)
         df[output_cols].to_csv(outname, sep=' ', float_format='%.6g', na_rep='NA', index=False)
@@ -458,9 +457,9 @@ def main(args):
         bed['chromosome'] = bed.chromosome.map(CHROM_MAPPING_INT)
         merged_bed = BedTool.from_dataframe(bed).merge()
 
-    ##  write had results indicator file for WDL purposes
+    #p  write had results indicator file for WDL purposes
     with open(args.out + "_had_results", 'w') as o:
-        if( merged_bed.count()==0):
+        if(merged_bed.count() == 0):
             logger.info("No significant regions identified.")
             o.write("False\n")
             return
