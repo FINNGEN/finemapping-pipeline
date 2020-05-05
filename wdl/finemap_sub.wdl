@@ -18,19 +18,24 @@ task ldstore {
     String docker
     Int cpu
     Int mem
-    Boolean enable_fuse=true
+    Boolean enable_fuse
 
     command <<<
         #!/usr/bin/env bash
         # mount bgen bucket
+
         mkdir -p ${mountpoint}
 
         if [[ ${enable_fuse} == "true" ]]
         then
             gcsfuse --implicit-dirs ${bgenbucket} ${mountpoint}
+            bgen_loc="${bgen}"
         else
-            gsutil cp ${bgen_gs} ${mountpoint}
+            gsutil -q cp ${bgen_gs} ${mountpoint}
+            bgen_loc="${mountpoint}/`basename ${bgen}`"
         fi
+
+        echo "bgen is at $bgen_loc"
 
         catcmd="cat"
         if [[ ${phenofile} == *.gz ]] || [[ ${phenofile} == *.bgz ]]
@@ -65,11 +70,11 @@ task ldstore {
         fi
 
         wc -l ${incl} | cut -f1 -d' ' > ${n_samples_file}
-        awk -v n_samples=`cat ${n_samples_file}` '
+        awk -v n_samples=`cat ${n_samples_file}` -v bgen_loc=$bgen_loc '
         BEGIN {
             OFS = ";"
             print "z", "bgen", "bgi", "bdose", "bcor", "ld", "sample", "incl", "n_samples"
-            print "${zfile}", "${bgen}", "${bgi}", "${prefix}.bdose", "${prefix}.bcor", "${prefix}.ld", "${sample}", "${incl}", n_samples
+            print "${zfile}", bgen_loc, "${bgi}", "${prefix}.bdose", "${prefix}.bcor", "${prefix}.ld", "${sample}", "${incl}", n_samples
         }' > ${master}
 
         n_threads=`grep -c ^processor /proc/cpuinfo`
@@ -101,7 +106,7 @@ task ldstore {
         docker: "${docker}"
         cpu: "${cpu}"
         memory: "${mem} GB"
-        disks: "local-disk 100 HDD"
+        disks: "local-disk 200 HDD"
         zones: "${zones}"
         preemptible: 2
         noAddress: false
