@@ -10,6 +10,7 @@ task ldstore {
     String bgenbucket = sub(sub(bgen_pattern, "^gs://", ""), "/.+$", "")
     String mountpoint = "/cromwell_root/gcsfuse/" + bgenbucket
     String bgen = sub(sub(bgen_pattern, "\\{CHR\\}", chrom), "^gs://" + bgenbucket, mountpoint)
+    String bgen_gs = sub(bgen_pattern, "\\{CHR\\}", chrom)
     File bgi = sub(bgen_pattern, "\\{CHR\\}", chrom) + ".bgi"
     String master = prefix + ".master"
     String n_samples_file = prefix + ".n_samples.txt"
@@ -17,33 +18,45 @@ task ldstore {
     String docker
     Int cpu
     Int mem
+    Boolean enable_fuse=true
 
     command <<<
         #!/usr/bin/env bash
         # mount bgen bucket
         mkdir -p ${mountpoint}
-        gcsfuse --implicit-dirs ${bgenbucket} ${mountpoint}
+
+        if [[ ${enable_fuse} == "true" ]]
+        then
+            gcsfuse --implicit-dirs ${bgenbucket} ${mountpoint}
+        else
+            gsutil cp ${bgen_gs} ${mountpoint}
+        fi
 
         catcmd="cat"
         if [[ ${phenofile} == *.gz ]] || [[ ${phenofile} == *.bgz ]]
         then
-         catcmd="zcat"
+            catcmd="zcat"
         fi
         echo "Reading phenotype file with $catcmd"
 
-        $catcmd ${phenofile} | awk -v ph=${pheno} \
-                    ' BEGIN{FS="\t"}
-                      NR==1{
-                            for(i=1;i<=NF;i++) {
-                                h[$i]=i;
-                            };
-                            exists=ph in h;
-                            if (!exists) {
-                                print "Phenotype:"ph" not found in the given phenotype file." > "/dev/stderr"; err=1; exit 1;
-                            }
-                      }
-                      $(h[ph])==1 || $(h[ph])==0 { print $1 }
-                    ' > ${incl}
+        $catcmd ${phenofile} | awk -v ph=${pheno} '
+        BEGIN {
+            FS = "\t"
+        }
+        NR == 1 {
+            for (i = 1; i <= NF; i++) {
+                h[$i] = i
+            }
+            exists = (ph in h)
+            if (!exists) {
+                print "Phenotype:"ph" not found in the given phenotype file." > "/dev/stderr"
+                exit 1
+            }
+        }
+        NR > 1 && $h[ph] != "NA" {
+            print $1
+        }
+        ' > ${incl}
 
         if [[ $? -ne 0 ]]
         then
@@ -55,18 +68,23 @@ task ldstore {
         awk -v n_samples=`cat ${n_samples_file}` '
         BEGIN {
             OFS = ";"
-            print "z", "bgen", "bgi", "bcor", "ld", "sample", "incl", "n_samples"
-            print "${zfile}", "${bgen}", "${bgi}", "${prefix}.bcor", "${prefix}.ld", "${sample}", "${incl}", n_samples
+            print "z", "bgen", "bgi", "bdose", "bcor", "ld", "sample", "incl", "n_samples"
+            print "${zfile}", "${bgen}", "${bgi}", "${prefix}.bdose", "${prefix}.bcor", "${prefix}.ld", "${sample}", "${incl}", n_samples
         }' > ${master}
 
         n_threads=`grep -c ^processor /proc/cpuinfo`
-        ldstore --in-files ${master} --write-bcor --n-threads $n_threads
+        ldstore --in-files ${master} --write-bcor --read-only-bgen --n-threads $n_threads
         ldstore --in-files ${master} --bcor-to-text
-        bgzip -@ ${cpu} ${prefix}.ld
+        bgzip -@ $n_threads ${prefix}.ld
         mv ${prefix}.ld.gz ${prefix}.ld.bgz
 
         echo "Finished"
-        fusermount -u ${mountpoint}
+
+        if [[ ${enable_fuse} == "true" ]]
+        then
+            fusermount -u ${mountpoint}
+        fi
+
         exit 0
     >>>
 
@@ -114,21 +132,39 @@ task finemap {
             print "${zfile}", "${bcor}", "${prefix}.snp", "${prefix}.config", "${prefix}.cred", n_samples, "${prefix}.log"
         }' > ${master}
 
-        prior_std=$(zcat ${phenofile} | awk -v ph=${pheno} \
-            ' BEGIN{FS="\t"}
-              NR==1{
-                    for(i=1;i<=NF;i++) {
-                        h[$i]=i;
-                    };
-                    exists=ph in h;
-                    if (!exists) {
-                        print "Phenotype:"ph" not found in the given phenotype file." > "/dev/stderr"; err=1; exit 1;
-                    }
-                   cases=0;controls=0;
-              }
-              NR>1{ vals[$(h[ph])]+=1 }
-              END{ if(!err) {phi=vals["1"]/(vals["1"]+vals["0"]); std=0.05 * sqrt(phi*(1-phi)); printf std} }
-            ')
+        prior_std=$(zcat ${phenofile} | awk -v ph=${pheno} '
+        BEGIN {
+            FS = "\t"
+        }
+        NR == 1 {
+            for (i = 1; i <= NF; i++) {
+                h[$i] = i
+            }
+            exists=ph in h
+            if (!exists) {
+                print "Phenotype:"ph" not found in the given phenotype file." > "/dev/stderr"
+                err = 1
+                exit 1
+            }
+            cases = 0
+            controls = 0
+        }
+        NR > 1 {
+            vals[$(h[ph])] += 1
+            if ($h[ph] != "NA" && $h[ph] != 0 && $h[ph] != 1) {
+                print "Phenotype:"ph" seems a quantitative trait. Setting prior_std = 0.05."> "/dev/stderr"
+                print 0.05
+                err = 1
+                exit 0
+            }
+        }
+        END {
+            if (!err) {
+                phi = vals["1"]/(vals["1"]+vals["0"])
+                std = 0.05 * sqrt(phi*(1-phi))
+                printf std
+            }
+        }')
 
         if [[ $? -ne 0 ]]
         then
@@ -136,11 +172,12 @@ task finemap {
             exit 1
         fi
 
+        n_threads=`grep -c ^processor /proc/cpuinfo`
         finemap --sss \
             --in-files ${master} \
             --log \
             --n-causal-snps ${n_causal_snps} \
-            --n-threads ${cpu} \
+            --n-threads $n_threads \
             --prior-std $prior_std
 
         # Merge p column
@@ -205,21 +242,39 @@ task susie {
 
     command <<<
         #!/usr/bin/env bash
-        var_y=$(zcat ${phenofile} | awk -v ph=${pheno} \
-            ' BEGIN{FS="\t"}
-              NR==1{
-                    for(i=1;i<=NF;i++) {
-                        h[$i]=i;
-                    };
-                    exists=ph in h;
-                    if (!exists) {
-                        print "Phenotype:"ph" not found in the given phenotype file." > "/dev/stderr"; err=1; exit 1;
-                    }
-                   cases=0;controls=0;
-              }
-              NR>1{ vals[$(h[ph])]+=1 }
-              END{ if(!err) {phi=vals["1"]/(vals["1"]+vals["0"]); var_y=phi*(1-phi); printf var_y} }
-            ')
+        var_y=$(zcat ${phenofile} | awk -v ph=${pheno} '
+        BEGIN {
+            FS = "\t"
+        }
+        NR == 1 {
+            for(i = 1; i <= NF; i++) {
+                h[$i] = i
+            }
+            exists=ph in h
+            if (!exists) {
+                print "Phenotype:"ph" not found in the given phenotype file." > "/dev/stderr"
+                err = 1
+                exit 1
+            }
+            cases = 0
+            controls = 0
+        }
+        NR > 1 {
+            vals[$h[ph]] += 1
+            if ($h[ph] != "NA" && $h[ph] != 0 && $h[ph] != 1) {
+                print "Phenotype:"ph" seems a quantitative trait. Setting var_y = 1." > "/dev/stderr"
+                print 1.0
+                err = 1
+                exit 0
+            }
+        }
+        END {
+            if (!err) {
+                phi = vals["1"] / (vals["1"]+vals["0"])
+                var_y = phi*(1-phi)
+                printf var_y
+            }
+        }')
 
         if [[ $? -ne 0 ]]
         then
@@ -238,6 +293,7 @@ task susie {
             --log ${prefix}.susie.log \
             --susie-obj ${prefix}.susie.rds \
             --save-susie-obj \
+            --write-alpha \
             --min_cs_corr ${min_cs_corr}
 
     >>>
@@ -255,7 +311,7 @@ task susie {
         docker: "${docker}"
         cpu: "${cpu}"
         memory: "${mem} GB"
-        disks: "local-disk 50 HDD"
+        disks: "local-disk 100 HDD"
         zones: "${zones}"
         preemptible: 2
         noAddress: true
@@ -380,6 +436,7 @@ task combine {
             print $0""cs_str
         }
         ' ${pheno}.FINEMAP.temp.cred ${pheno}.FINEMAP.temp.snp | bgzip -c -@ ${cpu} > ${pheno}.FINEMAP.snp.bgz
+        tabix -s 6 -b 7 -e 7 -S 1 ${pheno}.FINEMAP.snp.bgz
 
         # Extract region statistics from finemap .log_sss files
         awk -v pheno=${pheno} '
@@ -427,6 +484,7 @@ task combine {
 
         # Combine susie .snp files
         awk -f combine_snp.awk -v pheno=${pheno} ${sep=" " susie_snp} | bgzip -c -@ ${cpu} > ${pheno}.SUSIE.snp.bgz
+        tabix -s 5 -b 6 -e 6 -S 1 ${pheno}.SUSIE.snp.bgz
 
         # Combine susie .cred files
         awk -v pheno=${pheno} '
@@ -450,9 +508,11 @@ task combine {
     output {
 
         File out_finemap_snp = pheno + ".FINEMAP.snp.bgz"
+        File out_finemap_snp_tbi = pheno + ".FINEMAP.snp.bgz.tbi"
         File out_finemap_config = pheno + ".FINEMAP.config.bgz"
         File out_finemap_region = pheno + ".FINEMAP.region.bgz"
         File out_susie_snp = pheno + ".SUSIE.snp.bgz"
+        File out_susie_snp_tbi = pheno + ".SUSIE.snp.bgz.tbi"
         File out_susie_cred = pheno + ".SUSIE.cred.bgz"
 
     }

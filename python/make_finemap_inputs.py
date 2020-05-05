@@ -1,7 +1,4 @@
 #!/usr/bin/env python
-
-
-
 import argparse
 import os
 import os.path
@@ -59,35 +56,36 @@ def read_sumstats(path,
                   scale_se_by_pval=False,
                   extra_cols=None):
     logger.info("Loading sumstats: " + path)
+    sumstats = pd.read_csv(path,
+                           delim_whitespace=True,
+                           dtype={
+                               chromosome_col: str,
+                               position_col: int
+                           },
+                           compression='gzip' if path.endswith('gz') else 'infer')
 
-
-    sumstats = pd.read_csv(
-        path,
-        delim_whitespace=True,
-        dtype={chromosome_col: str, position_col: int},
-        compression='gzip' if path.endswith('gz') else 'infer')
-
-    req_cols = [chromosome_col,position_col, allele1_col, allele2_col, beta_col,se_col]
+    req_cols = [chromosome_col, position_col, allele1_col, allele2_col, beta_col, se_col]
     if not set_rsid:
         req_cols.append(rsid_col)
+
     if extra_cols is not None:
-        req_cols = req_cols +  extra_cols
-    missing = [ c for c in req_cols if c not in sumstats.columns ]
+        req_cols = req_cols + extra_cols
+    missing = [c for c in req_cols if c not in sumstats.columns]
+
     if len(missing) > 0:
         logger.error("All required columns not present in the data. Missing columns: " + " ".join(missing))
         raise Exception("All required columns not present in the data. Missing columns: " + " ".join(missing))
 
-    sumstats = sumstats.rename(index=str, columns={
-        rsid_col: 'rsid',
-        chromosome_col: 'chromosome',
-        position_col: 'position',
-        allele1_col: 'allele1',
-        allele2_col: 'allele2',
-        beta_col: 'beta',
-        se_col: 'se'
-    })
-
-
+    sumstats = sumstats.rename(index=str,
+                               columns={
+                                   rsid_col: 'rsid',
+                                   chromosome_col: 'chromosome',
+                                   position_col: 'position',
+                                   allele1_col: 'allele1',
+                                   allele2_col: 'allele2',
+                                   beta_col: 'beta',
+                                   se_col: 'se'
+                               })
 
     if grch38:
         sumstats['chromosome'] = sumstats.chromosome.str.replace('^chr', '')
@@ -135,12 +133,12 @@ def read_sumstats(path,
 
     if scale_se_by_pval:
 
-        se = np.abs(sumstats.beta / stats.norm.ppf(sumstats.p.astype(float)/2))
+        se = np.abs(sumstats.beta / stats.norm.ppf(sumstats.p.astype(float) / 2))
         se[(sumstats.beta == 0) | np.isnan(se)] = sumstats.se[(sumstats.beta == 0) | np.isnan(se)]
         logger.info("{} SNPs are scaled (--scale-se-by-pval)".format(np.sum(~np.isclose(sumstats.se, se))))
         sumstats['se'] = se
 
-    sumstats['chisq'] = (sumstats.beta / sumstats.se) ** 2
+    sumstats['chisq'] = (sumstats.beta / sumstats.se)**2
     sumstats = sumstats.dropna(subset=['beta', 'se', 'p'])
     return sumstats
 
