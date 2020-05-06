@@ -18,18 +18,21 @@ task ldstore {
     String docker
     Int cpu
     Int mem
-    Boolean enable_fuse=true
+    Boolean enable_fuse
 
     command <<<
         #!/usr/bin/env bash
         # mount bgen bucket
+
         mkdir -p ${mountpoint}
 
         if [[ ${enable_fuse} == "true" ]]
         then
             gcsfuse --implicit-dirs ${bgenbucket} ${mountpoint}
         else
-            gsutil cp ${bgen_gs} ${mountpoint}
+            bgen_dir=$(dirname ${bgen})
+            mkdir -p $bgen_dir
+            gsutil -q cp ${bgen_gs} $bgen_dir/
         fi
 
         catcmd="cat"
@@ -101,7 +104,7 @@ task ldstore {
         docker: "${docker}"
         cpu: "${cpu}"
         memory: "${mem} GB"
-        disks: "local-disk 100 HDD"
+        disks: "local-disk 200 HDD"
         zones: "${zones}"
         preemptible: 2
         noAddress: false
