@@ -57,7 +57,7 @@ def read_sumstats(path,
                   extra_cols=None):
     logger.info("Loading sumstats: " + path)
     sumstats = pd.read_csv(path,
-                           delim_whitespace=True,
+                           delimiter="\s",
                            dtype={
                                chromosome_col: str,
                                position_col: int
