@@ -41,11 +41,11 @@ compute_yty <- function(beta, se, p, R, n, k) {
   return(median(yty))
 }
 
-summarize.susie.cs = function (object, orig_vars,...) {
+summarize.susie.cs = function (object, orig_vars, R, ..., low_purity_threshold = 0.5) {
   if (is.null(object$sets))
     stop("Cannot summarize SuSiE object because credible set information is not available")
-  variables = data.frame(cbind(1:length(object$pip), object$pip, -1))
-  colnames(variables) = c('variable', 'variable_prob', 'cs')
+  variables = data.frame(cbind(1:length(object$pip), object$pip, -1, NA, NA))
+  colnames(variables) = c('variable', 'variable_prob', 'cs', 'low_purity', 'lead_r2')
   rownames(variables) = NULL
   added_vars <- c()
   if (object$null_index > 0) variables = variables[-object$null_index,]
@@ -61,13 +61,17 @@ summarize.susie.cs = function (object, orig_vars,...) {
       } else {
         added_vars <- append(added_vars, object$sets$cs[[i]])
       }
-      variables$cs[variables$variable %in% object$sets$cs[[i]]] = object$sets$cs_index[[i]]
-      variables[variables$variable %in% object$sets$cs[[i]],"cs_specific_prob"] = object$alpha[object$sets$cs_index[[i]], object$sets$cs[[i]]]
+      in_cs_idx = which(variables$variable %in% object$sets$cs[[i]])
+      variables$cs[in_cs_idx] = object$sets$cs_index[[i]]
+      variables$low_purity[in_cs_idx] = object$sets$purity$min.abs.corr[i] < low_purity_threshold
+      lead_pip_idx = in_cs_idx[which.max(variables$variable_prob[in_cs_idx])]
+      variables$lead_r2[in_cs_idx] = R[lead_pip_idx, in_cs_idx]^2
 
       cs$cs[i] = object$sets$cs_index[[i]]
-      cs$cs_log10bf[i] = object$lbf[cs$cs[i]]
+      cs$cs_log10bf[i] = log10(exp(object$lbf[cs$cs[i]]))
       cs$cs_avg_r2[i] = object$sets$purity$mean.abs.corr[i]^2
       cs$cs_min_r2[i] = object$sets$purity$min.abs.corr[i]^2
+      cs$low_purity = object$sets$purity$min.abs.corr[i] < low_purity_threshold
       cs$variable[i] = paste(object$sets$cs[[i]], collapse=',')
     }
     variables = variables[order(variables$variable_prob, decreasing = T),]
@@ -95,7 +99,7 @@ susie_ss_wrapper <- function(df, R, n, L, var_y = 1.0, prior_weights = NULL, min
     check_input = FALSE,
     min_abs_corr=min_abs_corr
   )
-  cs_summary <- summarize.susie.cs(fitted_bhat, df)
+  cs_summary <- summarize.susie.cs(fitted_bhat, df, R)
   variables <-
     cs_summary$vars %>%
       rename(prob = variable_prob) %>%
@@ -170,6 +174,13 @@ main <- function(args) {
     colnames(alpha) <- paste0("alpha", seq(ncol(alpha)))
     variables <- cbind(variables, alpha)
   }
+  if (args$write_single_effect) {
+    mean <- t(res$alpha * res$mu) / res$X_column_scale_factors
+    colnames(mean) <- paste0("mean", seq(ncol(mean)))
+    sd <- sqrt(t(res$alpha * res$mu2 - (res$alpha * res$mu)^2)) / (res$X_column_scale_factors)
+    colnames(sd) <- paste0("sd", seq(ncol(sd)))
+    variables <- cbind(variables, mean, sd)
+  }
   if (args$save_susie_obj) {
     saveRDS(res$susie_obj, file = args$susie_obj)
   }
@@ -192,11 +203,12 @@ parser$add_argument("--n-samples", "-n", type = "integer", required = TRUE)
 parser$add_argument("--var-y", type = "double", default = 1.0)
 parser$add_argument("--L", type = "integer", default = 10)
 parser$add_argument("--yty", type = "double")
-parser$add_argument("--min_cs_corr", default=0.5, type = "double")
+parser$add_argument("--min-cs-corr", default=0.5, type = "double")
 parser$add_argument("--compute-yty", action="store_true")
 parser$add_argument("--n-covariates", "-k", type = "integer")
 parser$add_argument("--prior-weights", type = "character")
 parser$add_argument("--write-alpha", action = "store_true")
+parser$add_argument("--write-single-effect", action = "store_true")
 parser$add_argument("--save-susie-obj", action = "store_true")
 parser$add_argument("--dominant", action = "store_true")
 
