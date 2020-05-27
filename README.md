@@ -40,7 +40,7 @@ Columns:
 - sd: posterior standard deviation after finemapping.
 - prob: posterior inclusion probability
 - cs: credible set index within region
-- alphax: posterior inclusion probability for x components (number of causal variants)
+- alphax: posterior inclusion probability for the x-th single effect (x := 1..L where L is the number of single effects (causal variants) speficied; default: L = 10).
 
 ## Finemap output
 
