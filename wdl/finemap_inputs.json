@@ -15,6 +15,7 @@
     "finemap.preprocess.beta_col": "beta",
     "finemap.preprocess.se_col": "sebeta",
     "finemap.preprocess.p_col": "pval",
+    "finemap.preprocess.delimiter": "\s",
     "finemap.preprocess.scale_se_by_pval": true,
     "finemap.preprocess.x_chromosome": true,
     "finemap.preprocess.p_threshold": 0.000001,

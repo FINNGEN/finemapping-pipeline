@@ -49,6 +49,7 @@ def read_sumstats(path,
                   se_col='se',
                   flip_col='flip',
                   p_col='p',
+                  delimiter='\s+',
                   recontig=False,
                   set_rsid=False,
                   flip_beta=False,
@@ -57,7 +58,7 @@ def read_sumstats(path,
                   extra_cols=None):
     logger.info("Loading sumstats: " + path)
     sumstats = pd.read_csv(path,
-                           delimiter="\s",
+                           delimiter=delimiter,
                            dtype={
                                chromosome_col: str,
                                position_col: int
@@ -431,6 +432,7 @@ def main(args):
             se_col=args.se_col[i],
             flip_col=args.flip_col[i],
             p_col=args.p_col[i],
+            delimiter=args.delimiter[i],
             recontig=args.recontig[i],
             set_rsid=args.set_rsid[i],
             flip_beta=args.flip_beta[i],
@@ -571,6 +573,7 @@ if __name__ == '__main__':
     parser.add_argument('--se-col', type=str, default='se')
     parser.add_argument('--flip-col', type=str, default='flip')
     parser.add_argument('--p-col', '-p', type=str, default='p')
+    parser.add_argument('--delimiter', type=str, default='\s+', help='Delimiter of sumstats')
     parser.add_argument('--extra-cols', type=str, nargs='+', help='Extra columns to output in .z files.')
     parser.add_argument('--recontig', action='store_true', default=False)
     parser.add_argument('--set-rsid', action='store_true', default=False)
@@ -585,8 +588,8 @@ if __name__ == '__main__':
 
     JSON_PARAMS = [
         'rsid_col', 'chromosome_col', 'position_col', 'allele1_col', 'allele2_col', 'maf_col', 'freq_col', 'beta_col',
-        'se_col', 'flip_col', 'p_col', 'recontig', 'set_rsid', 'flip_beta', 'scale_se_by_pval', 'project', 'regions',
-        'bgen_bucket', 'bgen_dirname', 'bgen_fname_format', 'var_y', 'load_yty', 'yty', 'phi'
+        'se_col', 'flip_col', 'p_col', 'delimiter', 'recontig', 'set_rsid', 'flip_beta', 'scale_se_by_pval', 'project',
+        'regions', 'bgen_bucket', 'bgen_dirname', 'bgen_fname_format', 'var_y', 'load_yty', 'yty', 'phi'
     ]
 
     # task parameters (usually set by json)
