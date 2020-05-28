@@ -763,11 +763,14 @@ if __name__ == '__main__':
         if k in JSON_PARAMS
     })
 
-    len_check_params = [args.gsdir]
-    if not args.wdl:
-        len_check_params += [args.localdir, args.input_samples, args.input_incl_samples, args.n_samples, args.var_y]
-    if not np.all(n_sumstats == np.array(map(len, len_check_params))):
-        raise ValueError("Different length.")
+    if not args.no_upload:
+        len_check_params = [args.gsdir]
+        if not args.wdl:
+            len_check_params += [args.localdir, args.input_samples, args.input_incl_samples, args.n_samples, args.var_y]
+        if args.gsdir is None:
+            raise ValueError("--gsdir should be specified.")
+        if not np.all(n_sumstats == np.array(map(len, len_check_params))):
+            raise ValueError("Different length.")
 
     if args.null_region and args.no_merge:
         raise ValueError("--null-region and --no-merge cannot be specified at the same time.")

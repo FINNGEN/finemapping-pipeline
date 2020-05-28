@@ -19,7 +19,6 @@ task preprocess {
     String beta_col
     String se_col
     String p_col
-    String delimiter
     # can be helpful if adding finemapping with relaxed threshold after more stringent has already ben run.
     # does not include regions with lead snp < this
     Float p_threshold
@@ -31,14 +30,14 @@ task preprocess {
             --sumstats ${sumstats} \
             --rsid-col "${rsid_col}" \
             --chromosome-col "${chromosome_col}" \
-            --position-col ${position_col} \
-            --allele1-col ${allele1_col} \
-            --allele2-col ${allele2_col} \
-            --freq-col ${freq_col} \
-            --beta-col ${beta_col} \
-            --se-col ${se_col} \
-            --p-col ${p_col} \
-            --delimiter ${delimiter} \
+            --position-col "${position_col}" \
+            --allele1-col "${allele1_col}" \
+            --allele2-col "${allele2_col}" \
+            --freq-col "${freq_col}" \
+            --beta-col "${beta_col}" \
+            --se-col "${se_col}" \
+            --p-col "${p_col}" \
+            --delimiter "\s" \
             --set-variant-id \
             --grch38 \
             --exclude-MHC \

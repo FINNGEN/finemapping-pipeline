@@ -1,6 +1,6 @@
 {
     "finemap.zones": "europe-west1-b",
-    "finemap.docker": "eu.gcr.io/finngen-refinery-dev/finemap-suite:1.23",
+    "finemap.docker": "eu.gcr.io/finngen-refinery-dev/finemap-suite:1.24",
     "finemap.sumstats_pattern": "gs://r5_data/saige/summary_stats_raw/{PHENO}.pheweb.gz",
     "finemap.phenolistfile": "gs://r5_data/pheno/R5_PHENOS_GTE_80_CASES_EXCL_OMIT.txt",
     "finemap.phenotypes": "gs://r5_data/pheno/R5_COV_PHENO_V1.txt.gz",
@@ -15,7 +15,6 @@
     "finemap.preprocess.beta_col": "beta",
     "finemap.preprocess.se_col": "sebeta",
     "finemap.preprocess.p_col": "pval",
-    "finemap.preprocess.delimiter": "\s",
     "finemap.preprocess.scale_se_by_pval": true,
     "finemap.preprocess.x_chromosome": true,
     "finemap.preprocess.p_threshold": 0.000001,
