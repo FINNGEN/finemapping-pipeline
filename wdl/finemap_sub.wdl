@@ -297,7 +297,8 @@ task susie {
             --susie-obj ${prefix}.susie.rds \
             --save-susie-obj \
             --write-alpha \
-            --min_cs_corr ${min_cs_corr}
+            --write-single-effect \
+            --min-cs-corr ${min_cs_corr}
 
     >>>
 
