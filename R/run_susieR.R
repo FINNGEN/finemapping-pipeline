@@ -63,6 +63,7 @@ summarize.susie.cs = function (object, orig_vars, R, ..., low_purity_threshold =
       }
       in_cs_idx = which(variables$variable %in% object$sets$cs[[i]])
       variables$cs[in_cs_idx] = object$sets$cs_index[[i]]
+      variables[variables$variable %in% object$sets$cs[[i]], "cs_specific_prob"] = object$alpha[object$sets$cs_index[[i]], object$sets$cs[[i]]]
       variables$low_purity[in_cs_idx] = object$sets$purity$min.abs.corr[i] < low_purity_threshold
       lead_pip_idx = in_cs_idx[which.max(variables$variable_prob[in_cs_idx])]
       variables$lead_r2[in_cs_idx] = R[lead_pip_idx, in_cs_idx]^2
@@ -81,7 +82,7 @@ summarize.susie.cs = function (object, orig_vars, R, ..., low_purity_threshold =
   return(list(vars=variables, cs=na.omit(cs)))
 }
 
-susie_ss_wrapper <- function(df, R, n, L, var_y = 1.0, prior_weights = NULL, min_abs_corr=0.0) {
+susie_ss_wrapper <- function(df, R, n, L, var_y = 1.0, prior_weights = NULL, min_abs_corr = 0.0, low_purity_threshold = 0.5) {
   beta <- df$beta
   se <- df$se
   fitted_bhat <- susie_suff_stat(
@@ -93,13 +94,13 @@ susie_ss_wrapper <- function(df, R, n, L, var_y = 1.0, prior_weights = NULL, min
     L = L,
     prior_weights = prior_weights,
     scaled_prior_variance = 0.1,
-    estimate_residual_variance = FALSE,
+    estimate_residual_variance = TRUE,
     estimate_prior_variance = TRUE,
     standardize = TRUE,
     check_input = FALSE,
     min_abs_corr=min_abs_corr
   )
-  cs_summary <- summarize.susie.cs(fitted_bhat, df, R)
+  cs_summary <- summarize.susie.cs(fitted_bhat, df, R, low_purity_threshold = low_purity_threshold)
   variables <-
     cs_summary$vars %>%
       rename(prob = variable_prob) %>%
@@ -163,26 +164,31 @@ main <- function(args) {
     var_y <- NULL
   }
 
-  res <- susie_ss_wrapper(df, R, n, L, var_y, prior_weights, min_abs_corr=args$min_cs_corr)
-  variables <- cbind(df, res$variables[c("mean", "sd", "prob", "cs")])
+  res <- susie_ss_wrapper(
+    df, R, n, L, var_y, prior_weights,
+    min_abs_corr = args$min_cs_corr, low_purity_threshold = args$low_purity_threshold
+  )
+  susie_obj <- res$susie_obj
+  variables <- cbind(df, res$variables[c("mean", "sd", "prob", "cs_specific_prob", "cs", "low_purity", "lead_r2")])
   cs <- res$cs
   if (!is.null(cs)) {
     cs <- cs %>% mutate(cs_size = unlist(lapply(str_split(variable, ","), length))) %>% select(-variable)
   }
   if (args$write_alpha) {
-    alpha <- t(res$susie_obj$alpha)
+    alpha <- t(susie_obj$alpha)
     colnames(alpha) <- paste0("alpha", seq(ncol(alpha)))
     variables <- cbind(variables, alpha)
   }
   if (args$write_single_effect) {
-    mean <- t(res$alpha * res$mu) / res$X_column_scale_factors
+    mean <- t(susie_obj$alpha * susie_obj$mu) / susie_obj$X_column_scale_factors
     colnames(mean) <- paste0("mean", seq(ncol(mean)))
-    sd <- sqrt(t(res$alpha * res$mu2 - (res$alpha * res$mu)^2)) / (res$X_column_scale_factors)
+    sd <- sqrt(t(susie_obj$alpha * susie_obj$mu2 - (susie_obj$alpha * susie_obj$mu)^2)) /
+      (susie_obj$X_column_scale_factors)
     colnames(sd) <- paste0("sd", seq(ncol(sd)))
     variables <- cbind(variables, mean, sd)
   }
   if (args$save_susie_obj) {
-    saveRDS(res$susie_obj, file = args$susie_obj)
+    saveRDS(susie_obj, file = args$susie_obj)
   }
 
   write.table(variables, args$snp, sep = "\t", row.names = F, quote = F)
@@ -203,7 +209,8 @@ parser$add_argument("--n-samples", "-n", type = "integer", required = TRUE)
 parser$add_argument("--var-y", type = "double", default = 1.0)
 parser$add_argument("--L", type = "integer", default = 10)
 parser$add_argument("--yty", type = "double")
-parser$add_argument("--min-cs-corr", default=0.5, type = "double")
+parser$add_argument("--min-cs-corr", default = 0.5, type = "double")
+parser$add_argument("--low-purity-threshold", default = 0.5, type = "double")
 parser$add_argument("--compute-yty", action="store_true")
 parser$add_argument("--n-covariates", "-k", type = "integer")
 parser$add_argument("--prior-weights", type = "character")
