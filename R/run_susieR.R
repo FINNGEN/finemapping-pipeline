@@ -51,8 +51,8 @@ summarize.susie.cs <- function(object, orig_vars, R, ..., low_purity_threshold =
   if (is.null(object$sets)) {
     stop("Cannot summarize SuSiE object because credible set information is not available")
   }
-  variables <- data.frame(cbind(1:length(object$pip), object$pip, -1, NA, NA))
-  colnames(variables) <- c("variable", "variable_prob", "cs", "low_purity", "lead_r2")
+  variables <- data.frame(cbind(1:length(object$pip), object$pip, -1, NA, NA, NA))
+  colnames(variables) <- c("variable", "variable_prob", "cs", "cs_specific_prob", "low_purity", "lead_r2")
   rownames(variables) <- NULL
   added_vars <- c()
   if (object$null_index > 0) variables <- variables[-object$null_index, ]
@@ -178,7 +178,7 @@ main <- function(args) {
     min_abs_corr = args$min_cs_corr, low_purity_threshold = args$low_purity_threshold
   )
   susie_obj <- res$susie_obj
-  variables <- cbind(df, res$variables[c("mean", "sd", "prob", "cs_specific_prob", "cs", "low_purity", "lead_r2")])
+  variables <- cbind(df, res$variables[c("mean", "sd", "prob", "cs", "cs_specific_prob", "low_purity", "lead_r2")])
   cs <- res$cs
   if (!is.null(cs)) {
     cs <- cs %>%
