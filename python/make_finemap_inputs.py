@@ -763,6 +763,27 @@ if __name__ == '__main__':
         if k in JSON_PARAMS
     })
 
+    if args.delimiter is not None:
+        def update_delimiter(delimiter):
+            STANDARD_DELIMITERS = ['\s', '\s+', '\t', ' ']
+            MAGIC_WORDS = ['SINGLE_WHITESPACE', 'WHITESPACE', 'TAB', 'SPACE']
+            if delimiter == 'SINGLE_WHITESPACE':
+                return '\s'
+            elif delimiter == 'WHITESPACE':
+                return '\s+'
+            elif delimiter == 'TAB':
+                return '\t'
+            elif delimiter == 'SPACE':
+                return ' '
+            elif delimiter not in STANDARD_DELIMITERS:
+                logger.warning(
+                    '--delimiter %s does not seem a standard delimiter nor match any of magic words (%s).'.format(
+                        args.delimiter, ','.join(MAGIC_WORDS)))
+                return delimiter
+        args.delimiter = map(lambda x: update_delimiter(x), args.delimiter)
+    else:
+        raise ValueError('--delimiter should be specified.')
+
     if not args.no_upload:
         len_check_params = [args.gsdir]
         if not args.wdl:
