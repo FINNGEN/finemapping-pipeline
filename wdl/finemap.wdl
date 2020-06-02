@@ -31,26 +31,21 @@ task preprocess {
             --sumstats ${sumstats} \
             --rsid-col "${rsid_col}" \
             --chromosome-col "${chromosome_col}" \
-            --position-col ${position_col} \
-            --allele1-col ${allele1_col} \
-            --allele2-col ${allele2_col} \
-            --freq-col ${freq_col} \
-            --beta-col ${beta_col} \
-            --se-col ${se_col} \
-            --p-col ${p_col} \
-            --delimiter ${delimiter} \
-            --set-rsid \
+            --position-col "${position_col}" \
+            --allele1-col "${allele1_col}" \
+            --allele2-col "${allele2_col}" \
+            --freq-col "${freq_col}" \
+            --beta-col "${beta_col}" \
+            --se-col "${se_col}" \
+            --p-col "${p_col}" \
+            --delimiter "${delimiter}" \
+            --set-variant-id \
             --grch38 \
             --exclude-MHC \
             --no-upload \
-            --gsdir '' \
-            --localdir '' \
-            --input-samples '' \
-            --input-incl-samples '' \
             --prefix ${pheno} \
-            -n 1 \
-            --var-y 1 \
             --out ${pheno} \
+            --wdl \
             ${true='--scale-se-by-pval ' false=' ' scale_se_by_pval} \
             ${true='--x-chromosome' false=' ' x_chromosome} \
             --p-threshold ${p_threshold} \

@@ -51,7 +51,7 @@ def read_sumstats(path,
                   p_col='p',
                   delimiter='\s+',
                   recontig=False,
-                  set_rsid=False,
+                  set_variant_id=False,
                   flip_beta=False,
                   grch38=False,
                   scale_se_by_pval=False,
@@ -66,7 +66,7 @@ def read_sumstats(path,
                            compression='gzip' if path.endswith('gz') else 'infer')
 
     req_cols = [chromosome_col, position_col, allele1_col, allele2_col, beta_col, se_col]
-    if not set_rsid:
+    if not set_variant_id:
         req_cols.append(rsid_col)
 
     if extra_cols is not None:
@@ -99,9 +99,9 @@ def read_sumstats(path,
     if recontig:
         sumstats['chromosome'] = np.where(chromosome_int < 10, '0' + sumstats.chromosome, sumstats.chromosome)
 
-    if set_rsid:
+    if set_variant_id:
         sumstats['rsid'] = sumstats.chromosome.str.cat(
-            [sumstats.position.astype(str), sumstats.allele1, sumstats.allele2], sep="_")
+            [sumstats.position.astype(str), sumstats.allele1, sumstats.allele2], sep=args.variant_id_sep)
         if grch38:
             sumstats['rsid'] = 'chr' + sumstats.rsid
 
@@ -133,7 +133,6 @@ def read_sumstats(path,
         sumstats = sumstats.rename(index=str, columns={p_col: 'p'})
 
     if scale_se_by_pval:
-
         se = np.abs(sumstats.beta / stats.norm.ppf(sumstats.p.astype(float) / 2))
         se[(sumstats.beta == 0) | np.isnan(se)] = sumstats.se[(sumstats.beta == 0) | np.isnan(se)]
         logger.info("{} SNPs are scaled (--scale-se-by-pval)".format(np.sum(~np.isclose(sumstats.se, se))))
@@ -148,23 +147,24 @@ def generate_bed(sumstats,
                  p_threshold=5e-8,
                  maf_threshold=0,
                  window=0,
+                 no_merge=False,
                  grch38=False,
                  exclude_MHC=False,
                  MHC_start=25e6,
                  MHC_end=34e6,
+                 wdl=False,
                  min_p_threshold=None):
-    bed_frames = []
     chisq_threshold = sp.stats.norm.ppf(p_threshold / 2) ** 2
-
-    max_chisq_threshold = (sp.stats.norm.ppf(min_p_threshold / 2) ** 2) if min_p_threshold is not None else None
+    max_chisq_threshold = (sp.stats.norm.ppf(min_p_threshold / 2)**2) if min_p_threshold is not None else None
 
     df = pd.concat(map(lambda x: x[x.chisq > chisq_threshold], sumstats)).sort_values('chisq', ascending=False)
+    bed_frames = []
     lead_snps = []
 
     build = 'hg19' if not grch38 else 'hg38'
 
     # exclude significant SNPs in the MHC region
-    MHC_idx = (df.chromosome == '6') & (df.position >= MHC_start) & (df.position <= MHC_end)
+    MHC_idx = (df.chromosome.map(CHROM_MAPPING_INT) == 6) & (df.position >= MHC_start) & (df.position <= MHC_end)
     if exclude_MHC and np.sum(MHC_idx) > 0:
         logger.warning('{} significant SNPs excluded due to --exclude-MHC'.format(np.sum(MHC_idx)))
         df = df.loc[~MHC_idx, :]
@@ -173,8 +173,8 @@ def generate_bed(sumstats,
         maf_idx = df.maf < maf_threshold
         logger.warning('{} significant SNPs excluded due to --maf-threshold'.format(np.sum(maf_idx)))
         df = df.loc[~maf_idx, :]
-    #if len(df.index) == 0:
-    #    raise RuntimeError('No signifcant SNPs found.')
+    if not wdl and len(df.index) == 0:
+        raise RuntimeError('No signifcant SNPs found.')
 
     while len(df.index) > 0:
         lead_snp = df.iloc[0, :]
@@ -184,17 +184,21 @@ def generate_bed(sumstats,
         end = min(end, chr_end)
         df = df.loc[~((df.chromosome == chrom) & (df.position >= start) & (df.position <= end)), :]
 
-        if max_chisq_threshold is not None and lead_snp.chisq>max_chisq_threshold:
+        # Skip a lead SNP with p < min_p_threshold
+        if max_chisq_threshold is not None and lead_snp.chisq > max_chisq_threshold:
             continue
 
-        bed_frames.append(pd.DataFrame([[CHROM_MAPPING_INT[chrom], int(start), int(end)]], columns=['chrom', 'start', 'end']))
+        bed_frames.append(
+            pd.DataFrame([[CHROM_MAPPING_INT[chrom], int(start), int(end)]], columns=['chrom', 'start', 'end']))
         lead_snps.append(lead_snp)
 
     if len(bed_frames) > 0:
-        bed = BedTool.from_dataframe(pd.concat(bed_frames).sort_values(['chrom', 'start'])).merge()
+        bed = BedTool.from_dataframe(pd.concat(bed_frames).sort_values(['chrom', 'start']))
+        if not no_merge:
+            bed = bed.merge()
         lead_snps = pd.concat(lead_snps, axis=1).T
     else:
-        bed = BedTool.from_dataframe( pd.DataFrame(columns=['chrom', 'start', 'end']))
+        bed = BedTool.from_dataframe(pd.DataFrame(columns=['chrom', 'start', 'end']))
         lead_snps = df
 
     return bed, lead_snps
@@ -206,9 +210,11 @@ def output_z(df, prefix, boundaries, grch38=False, no_output=True, extra_cols=No
                                                boundaries[i + 1] % CHROM_CONSTANT)
     if grch38:
         df['chromosome'] = 'chr' + df.chromosome
+
     output_cols = FINEMAP_COLUMNS
     if extra_cols is not None:
         output_cols = output_cols + extra_cols
+
     if not no_output:
         logger.info("Writing z file: " + outname)
         df[output_cols].to_csv(outname, sep=' ', float_format='%.6g', na_rep='NA', index=False)
@@ -217,6 +223,7 @@ def output_z(df, prefix, boundaries, grch38=False, no_output=True, extra_cols=No
 
 def output_tasks(args,
                  input_z,
+                 region_size,
                  prefix,
                  gsdir,
                  localdir,
@@ -227,6 +234,13 @@ def output_tasks(args,
                  load_yty=False,
                  yty=None,
                  phi=None):
+
+    if args.max_region_size < np.inf:
+        print(region_size)
+        idx = region_size < args.max_region_size
+        input_z = input_z.loc[idx]
+        logger.warning('{} regions excluded due to region_size <= {}'.format(np.sum(~idx), args.max_region_size))
+
     n_tasks = len(input_z)
     gsdir = pd.Series([gsdir] * n_tasks)
     localdir = pd.Series([localdir] * n_tasks)
@@ -255,6 +269,7 @@ def output_tasks(args,
     out_susie_snp = input_base.str.cat(['.susie.snp'] * n_tasks)
     out_susie_cred = input_base.str.cat(['.susie.cred'] * n_tasks)
     out_susie_log = input_base.str.cat(['.susie.log'] * n_tasks)
+    out_susie_rds = input_base.str.cat(['.susie.rds'] * n_tasks)
     var_y = [var_y] * n_tasks
     yty = [yty] * n_tasks
     if args.dominant:
@@ -289,6 +304,7 @@ def output_tasks(args,
             ('--output OUT_SNP', gsdir.str.cat(out_susie_snp.values)),
             ('--output OUT_CRED', gsdir.str.cat(out_susie_cred.values)),
             ('--output OUT_LOG', gsdir.str.cat(out_susie_log.values)),
+            ('--output OUT_RDS', gsdir.str.cat(out_susie_rds.values)),
             ('--env N_SAMPLES', n_samples),
             ('--env VAR_Y', var_y),
             ('--env YTY', yty),
@@ -325,7 +341,8 @@ def dsub(job_name,
         '--name', job_name,
         '--script', script,
         '--tasks', tasks,
-        '--logging', logging
+        '--logging', logging,
+        '--disk-size', '100'
     ]
 
     if preemptible:
@@ -434,7 +451,7 @@ def main(args):
             p_col=args.p_col[i],
             delimiter=args.delimiter[i],
             recontig=args.recontig[i],
-            set_rsid=args.set_rsid[i],
+            set_variant_id=args.set_variant_id[i],
             flip_beta=args.flip_beta[i],
             grch38=args.grch38,
             scale_se_by_pval=args.scale_se_by_pval[i],
@@ -443,40 +460,42 @@ def main(args):
 
     if args.bed is None:
         logger.info('Generating bed')
-        merged_bed, lead_snps = generate_bed(sumstats, args.p_threshold, args.maf_threshold, args.window, args.grch38,
-                                             args.exclude_MHC, args.MHC_start, args.MHC_end, args.min_p_threshold)
+        merged_bed, lead_snps = generate_bed(sumstats, args.p_threshold, args.maf_threshold, args.window, args.no_merge,
+                                             args.grch38, args.exclude_MHC, args.MHC_start, args.MHC_end, args.wdl,
+                                             args.min_p_threshold)
         lead_snps.to_csv(args.out + '.lead_snps.txt', sep='\t', index=False)
     else:
         i = 0
         logger.info('Loading user-supplied bed: ' + args.bed[i])
-        bed = pd.read_csv(
-            args.bed[i],
-            delim_whitespace=True,
-            header=None,
-            names=['chromosome', 'start', 'end'],
-            dtype={'chromosome': str}
-        )
+        bed = pd.read_csv(args.bed[i],
+                          delim_whitespace=True,
+                          header=None,
+                          names=['chromosome', 'start', 'end'],
+                          dtype={'chromosome': str})
         bed['chromosome'] = bed.chromosome.map(CHROM_MAPPING_INT)
-        merged_bed = BedTool.from_dataframe(bed).merge()
-
-    #p  write had results indicator file for WDL purposes
-    with open(args.out + "_had_results", 'w') as o:
-        if(merged_bed.count() == 0):
-            logger.info("No significant regions identified.")
-            o.write("False\n")
-            return
-        else:
-            o.write("True\n")
-
+        merged_bed = BedTool.from_dataframe(bed)
+        if not args.no_merge:
+            merged_bed = merged_bed.merge()
     logger.info(merged_bed)
 
+    # write had results indicator file for WDL purposes
+    if args.wdl:
+        with open(args.out + "_had_results", 'w') as o:
+            if (merged_bed.count() == 0):
+                logger.info("No significant regions identified.")
+                o.write("False\n")
+                return
+            else:
+                o.write("True\n")
+
     build = 'hg19' if not args.grch38 else 'hg38'
-    chromsizes = pd.DataFrame.from_dict(pybedtools.chromsizes(build), orient='index', columns=['start', 'end']).loc[['chr' + CHROM_MAPPING_STR[str(i)] for i in range(1, max_chrom_int+1)], :]
+    chromsizes = pd.DataFrame.from_dict(
+        pybedtools.chromsizes(build), orient='index',
+        columns=['start', 'end']).loc[['chr' + CHROM_MAPPING_STR[str(i)] for i in range(1, max_chrom_int + 1)], :]
     chromsizes['chromosome'] = range(1, max_chrom_int+1)
     chromsizes = chromsizes[['chromosome', 'start', 'end']]
 
-
-    unique_chroms = merged_bed.to_dataframe().iloc[0, :].unique() if merged_bed.count()>0 else merged_bed.to_dataframe()
+    unique_chroms = merged_bed.to_dataframe().iloc[0, :].unique()
     all_bed = BedTool.from_dataframe(chromsizes[chromsizes.chromosome.isin(unique_chroms)])
     all_bed = all_bed.subtract(merged_bed).cat(
         merged_bed, postmerge=False).to_dataframe().sort_values(['chrom', 'start'])
@@ -487,39 +506,89 @@ def main(args):
                             convert_chrpos(all_bed.chrom, all_bed.end)]).sort_values().unique()
     logger.debug(boundaries)
 
-    # assign regions
-    sumstats = map(
-        lambda x: x.assign(region=pd.cut(x.chrpos, boundaries, right=False, labels=False, include_lowest=True)),
-        sumstats)
-    if not args.null_region:
-        sig_regions = pd.cut(
-            convert_chrpos(merged_bed.chrom, merged_bed.start),
-            boundaries,
-            right=False,
-            labels=False,
-            include_lowest=True).unique()
-        sumstats = map(lambda x: x[x.region.isin(sig_regions)], sumstats)
-    else:
-        merged_bed = all_bed
+    if not args.no_merge:
+        # assign regions
+        sumstats = map(
+            lambda x: x.assign(region=pd.cut(x.chrpos, boundaries, right=False, labels=False, include_lowest=True)),
+            sumstats)
+        if not args.null_region:
+            sig_regions = pd.cut(convert_chrpos(merged_bed.chrom, merged_bed.start),
+                                 boundaries,
+                                 right=False,
+                                 labels=False,
+                                 include_lowest=True).unique()
+            sumstats = map(lambda x: x[x.region.isin(sig_regions)], sumstats)
+        else:
+            merged_bed = all_bed
 
     if args.bed is None:
         merged_bed.to_csv(args.out + '.bed', sep='\t', index=False, header=False)
 
     for i, x in enumerate(sumstats):
-        input_z = x.groupby('region').apply(
-            output_z,
-            prefix=args.prefix[i],
-            boundaries=boundaries,
-            grch38=args.grch38,
-            no_output=args.no_output,
-            extra_cols=args.extra_cols)
+        if args.extract is not None:
+            if 'v' not in x.columns:
+                x['v'] = x.chromosome.map(CHROM_MAPPING_STR) + ':' + x.position.astype(
+                    str) + ':' + x.allele1 + ':' + x.allele2
+            snplist = pd.read_csv(args.extract,
+                                  delim_whitespace=True,
+                                  header=None,
+                                  compression='gzip' if args.extract.endswith('gz') else 'infer').iloc[:, 0]
+            logger.warning('{} SNPs excluded due to --extract'.format(np.sum(~x.v.isin(snplist))))
+            x = x.loc[x.v.isin(snplist), :]
+
+        if not args.no_merge:
+            input_z = x.groupby('region').apply(output_z,
+                                                prefix=args.prefix[i],
+                                                boundaries=boundaries,
+                                                grch38=args.grch38,
+                                                no_output=args.no_output,
+                                                extra_cols=args.extra_cols)
+
+            region_size = x.groupby('region').count().rsid
+        else:
+            # boundaries are ordered wrongly if there are overlapping regions
+            boundaries = pd.concat(
+                [convert_chrpos(merged_bed.chrom, merged_bed.start),
+                 convert_chrpos(merged_bed.chrom, merged_bed.end)],
+                axis=1).values.flatten()
+            logger.debug(boundaries)
+
+            # dirty hack for now -- pd.cut doesn't accept variants assigned to multiple regions
+            input_z = []
+            region_size = []
+            for j, row in merged_bed.iterrows():
+                start = convert_chrpos(row.chrom, row.start)
+                end = convert_chrpos(row.chrom, row.end)
+                idx = (start <= x.chrpos) & (x.chrpos <= end)
+                # region values should be consistent with pd.cut outputs
+                xx = x.loc[idx, :]
+                xx.name = 2 * j
+                input_z.append(
+                    output_z(xx,
+                             prefix=args.prefix[i],
+                             boundaries=boundaries,
+                             grch38=args.grch38,
+                             no_output=args.no_output,
+                             extra_cols=args.extra_cols))
+                region_size.append(np.sum(idx))
+
+            input_z = pd.Series(input_z)
+            region_size = pd.Series(region_size)
 
         if not args.no_upload:
             logger.info("Uploading z files")
-            run_command(['gsutil', '-m', 'cp', args.out + '.bed', args.out + '.lead_snps.txt'] + input_z.values.tolist() + [args.gsdir[i]])
+            if args.bed is None:
+                bed_and_leadsnps = [args.out + '.bed', args.out + '.lead_snps.txt']
+            else:
+                bed_and_leadsnps = [args.bed[0]]
+            run_command(['gsutil', '-m', 'cp'] + bed_and_leadsnps + input_z.values.tolist() + [args.gsdir[i]])
+
+        if args.wdl:
+            logger.info("--wdl is specified. No task/dsub files were output.")
+            return
 
         logger.info("Writing task files")
-        output_tasks(args, input_z, args.prefix[i], args.gsdir[i], args.localdir[i], args.input_samples[i],
+        output_tasks(args, input_z, region_size, args.prefix[i], args.gsdir[i], args.localdir[i], args.input_samples[i],
                      args.input_incl_samples[i], args.n_samples[i], args.var_y[i], args.load_yty[i], args.yty[i],
                      args.phi[i])
 
@@ -538,14 +607,25 @@ def main(args):
             dsub_finemap(args, args.prefix[i], args.gsdir[i], args.project[i], args.regions[i], submit_jobs=False)
             dsub_susie(args, args.prefix[i], args.gsdir[i], args.project[i], args.regions[i], submit_jobs=False)
 
+
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--out', type=str)
     parser.add_argument('--p-threshold', type=float, default=5e-8)
-    parser.add_argument('--min-p-threshold', type=float, help="Minimum lead variant p-value for inclusion in finemapping."
-    + " Useful for adding less significant regions after genome-wide significant finemapping has already been done")
+    parser.add_argument(
+        '--min-p-threshold',
+        type=float,
+        help=(
+            "Minimum lead variant p-value for inclusion in finemapping. "
+            "Useful for adding less significant regions after genome-wide significant finemapping has already been done"
+        ))
     parser.add_argument('--maf-threshold', type=float, default=0, help='MAF threshold for lead variants')
+    parser.add_argument('--max-region-size',
+                        type=int,
+                        default=np.inf,
+                        help='Maximum number of variants limit for a region to finemap (only applies to task files)')
     parser.add_argument('--window', type=int, default=1.5e6)
+    parser.add_argument('--no-merge', action='store_true', help='Do not merge overlapped regions')
     parser.add_argument('--null-region', action='store_true')
     parser.add_argument('--no-upload', action='store_true')
     parser.add_argument('--no-output', action='store_true')
@@ -554,12 +634,18 @@ if __name__ == '__main__':
     parser.add_argument('--exclude-MHC', action='store_true')
     parser.add_argument('--MHC-start', type=int, default=25e6)
     parser.add_argument('--MHC-end', type=int, default=34e6)
+    parser.add_argument('--extract', type=str, help='Extract specific set of variants to fine-map')
     parser.add_argument('--dominant', action='store_true')
     parser.add_argument('--x-chromosome', action='store_true')
+    parser.add_argument('--variant-id-sep',
+                        type=str,
+                        default='_',
+                        help='Separator for variant ID when --set-variant-id is specified.')
+    parser.add_argument('--wdl', action='store_true', help='Output extra files for wdl')
 
     # sumstats settings
     parser.add_argument('--json', type=str, nargs='+')
-    parser.add_argument('--sumstats', type=str, nargs='+')#, required=True)
+    parser.add_argument('--sumstats', type=str, nargs='+')
     parser.add_argument('--prefix', type=str, nargs='+')
     parser.add_argument('--bed', type=str, nargs='+')
     parser.add_argument('--rsid-col', type=str, default='rsid')
@@ -576,7 +662,7 @@ if __name__ == '__main__':
     parser.add_argument('--delimiter', type=str, default='\s+', help='Delimiter of sumstats')
     parser.add_argument('--extra-cols', type=str, nargs='+', help='Extra columns to output in .z files.')
     parser.add_argument('--recontig', action='store_true', default=False)
-    parser.add_argument('--set-rsid', action='store_true', default=False)
+    parser.add_argument('--set-variant-id', action='store_true', default=False)
     parser.add_argument('--flip-beta', action='store_true', default=False)
     parser.add_argument('--grch38', action='store_true', default=False)
     parser.add_argument(
@@ -588,7 +674,7 @@ if __name__ == '__main__':
 
     JSON_PARAMS = [
         'rsid_col', 'chromosome_col', 'position_col', 'allele1_col', 'allele2_col', 'maf_col', 'freq_col', 'beta_col',
-        'se_col', 'flip_col', 'p_col', 'delimiter', 'recontig', 'set_rsid', 'flip_beta', 'scale_se_by_pval', 'project',
+        'se_col', 'flip_col', 'p_col', 'delimiter', 'recontig', 'set_variant_id', 'flip_beta', 'scale_se_by_pval', 'project',
         'regions', 'bgen_bucket', 'bgen_dirname', 'bgen_fname_format', 'var_y', 'load_yty', 'yty', 'phi'
     ]
 
@@ -607,18 +693,32 @@ if __name__ == '__main__':
     parser.add_argument('--project', type=str, default='encode-uk-biobank-restrict', nargs='+')
     parser.add_argument('--regions', type=str, default='us-central1', nargs='+')
     parser.add_argument('--preemptible', action='store_true')
-    parser.add_argument('--bgen-bucket', type=str, default='BGEN_BUCKET=gs://fc-7d5088b4-7673-45b5-95c2-17ae00a04183', nargs='+')
+    parser.add_argument('--bgen-bucket',
+                        type=str,
+                        default='BGEN_BUCKET=gs://fc-7d5088b4-7673-45b5-95c2-17ae00a04183',
+                        nargs='+')
     parser.add_argument('--bgen-dirname', type=str, default='imputed', nargs='+')
     parser.add_argument('--bgen-fname-format', type=str, default='ukb_imp_chr{}_v3.bgen', nargs='+')
     parser.add_argument('--ldstore-machine-type', type=str, default='n1-standard-16')
     parser.add_argument('--ldstore-image', type=str, default='gcr.io/encode-uk-biobank-restrict/finemap-suite:0.6')
-    parser.add_argument('--ldstore-script', type=str, default='/humgen/atgu1/fs03/mkanai/workspace/201901_XFinemap/xfinemap/docker/ldstore/dsub_ldstore.py')
+    parser.add_argument(
+        '--ldstore-script',
+        type=str,
+        default='/humgen/atgu1/fs03/mkanai/workspace/201901_XFinemap/xfinemap/docker/ldstore/dsub_ldstore.py')
     parser.add_argument('--finemap-machine-type', type=str, default='n1-highmem-4')
     parser.add_argument('--finemap-image', type=str, default='gcr.io/encode-uk-biobank-restrict/finemap:1.3.1')
-    parser.add_argument('--finemap-script', type=str, default='/humgen/atgu1/fs03/mkanai/workspace/201901_XFinemap/xfinemap/docker/finemap/dsub_finemap.py')
+    parser.add_argument(
+        '--finemap-script',
+        type=str,
+        default='/humgen/atgu1/fs03/mkanai/workspace/201901_XFinemap/xfinemap/docker/finemap/dsub_finemap.py')
     parser.add_argument('--susie-machine-type', type=str, default='n1-highmem-16')
-    parser.add_argument('--susie-image', type=str, default='gcr.io/encode-uk-biobank-restrict/susie:0.8.1.0521.save-rds.yty.dominant')
-    parser.add_argument('--susie-script', type=str, default='/humgen/atgu1/fs03/mkanai/workspace/201901_XFinemap/xfinemap/docker/susie/dsub_susie.py')
+    parser.add_argument('--susie-image',
+                        type=str,
+                        default='gcr.io/encode-uk-biobank-restrict/susie:0.8.1.0521.save-rds.yty.dominant')
+    parser.add_argument(
+        '--susie-script',
+        type=str,
+        default='/humgen/atgu1/fs03/mkanai/workspace/201901_XFinemap/xfinemap/docker/susie/dsub_susie.py')
 
     args = parser.parse_args()
 
@@ -663,10 +763,38 @@ if __name__ == '__main__':
         if k in JSON_PARAMS
     })
 
-    if not np.all(n_sumstats == np.array(
-            map(len,
-                [args.gsdir, args.localdir, args.input_samples, args.input_incl_samples, args.n_samples, args.var_y]))):
-        raise ValueError("Different length.")
+    if args.delimiter is not None:
+        def update_delimiter(delimiter):
+            STANDARD_DELIMITERS = ['\s', '\s+', '\t', ' ']
+            MAGIC_WORDS = ['SINGLE_WHITESPACE', 'WHITESPACE', 'TAB', 'SPACE']
+            if delimiter == 'SINGLE_WHITESPACE':
+                return '\s'
+            elif delimiter == 'WHITESPACE':
+                return '\s+'
+            elif delimiter == 'TAB':
+                return '\t'
+            elif delimiter == 'SPACE':
+                return ' '
+            elif delimiter not in STANDARD_DELIMITERS:
+                logger.warning(
+                    '--delimiter %s does not seem a standard delimiter nor match any of magic words (%s).'.format(
+                        args.delimiter, ','.join(MAGIC_WORDS)))
+                return delimiter
+        args.delimiter = map(lambda x: update_delimiter(x), args.delimiter)
+    else:
+        raise ValueError('--delimiter should be specified.')
+
+    if not args.no_upload:
+        len_check_params = [args.gsdir]
+        if not args.wdl:
+            len_check_params += [args.localdir, args.input_samples, args.input_incl_samples, args.n_samples, args.var_y]
+        if args.gsdir is None:
+            raise ValueError("--gsdir should be specified.")
+        if not np.all(n_sumstats == np.array(map(len, len_check_params))):
+            raise ValueError("Different length.")
+
+    if args.null_region and args.no_merge:
+        raise ValueError("--null-region and --no-merge cannot be specified at the same time.")
 
     if args.out is None:
         if n_sumstats == 1:
