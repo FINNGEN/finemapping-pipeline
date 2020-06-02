@@ -19,6 +19,7 @@ task preprocess {
     String beta_col
     String se_col
     String p_col
+    String delimiter
     # can be helpful if adding finemapping with relaxed threshold after more stringent has already ben run.
     # does not include regions with lead snp < this
     Float p_threshold
@@ -37,6 +38,7 @@ task preprocess {
             --beta-col ${beta_col} \
             --se-col ${se_col} \
             --p-col ${p_col} \
+            --delimiter ${delimiter} \
             --set-rsid \
             --grch38 \
             --exclude-MHC \
