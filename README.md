@@ -75,6 +75,7 @@ Columns:
 - sd: posterior standard deviation after fine-mapping.
 - prob: posterior inclusion probability
 - cs: credible set index within region
+- lead_r2: r2 value to a lead variant (the one with maximum PIP) in a credible set
 - alphax: posterior inclusion probability for the x-th single effect (x := 1..L where L is the number of single effects (causal variants) speficied; default: L = 10).
 
 ### FINEMAP outputs
