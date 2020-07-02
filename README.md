@@ -6,7 +6,7 @@ This repository provides a pipeline for statistical fine-mapping in FinnGen. We 
 
 Briefly, there are three main steps:
 ### 1. Preprocessing
-For each genome-wide significant locus (P < 5e-8), we define a fine-mapping region by taking a 3 Mb window around a lead variant (and merge regions if they overlap). We preprocess an input GWAS summary statistics into separate files per region for the following steps.
+For each genome-wide significant locus (default configuration: P < 5e-8), we define a fine-mapping region by taking a 3 Mb window around a lead variant (and merge regions if they overlap). We preprocess an input GWAS summary statistics into separate files per region for the following steps.
 
 ### 2. LD computation
 We compute in-sample dosage LD using [LDstore2](http://www.christianbenner.com/) for each fine-mapping region.
@@ -38,7 +38,7 @@ Configurable options include:
 - `finemap.preprocess.x_chromosome`: an option to include X-chromosome. It assumes females coded as 0/1/2 and males coded as 0/2.
 - `finemap.preprocess.p_threshold`: a p-value threshold to define a fine-mapping region
 - `finemap.ldstore_finemap.n_causal_snps`: a maximum number of causal variants per locus
-- `finemap.ldstore_finemap.susie.min_cs_corr`: a minimum pairwise correlation value (`r`) for variants in a credibe set for purity filter in SuSiE. To enable a post-hoc purity filtering, it is set as 0 by default but users are strongly encouraged to do a purity filtering based on `cs_min_r2` value or `low_purity` flag.
+- **`finemap.ldstore_finemap.susie.min_cs_corr`**: **[IMPORTANT]** a minimum pairwise correlation value (`r`) for variants in a credibe set for purity filter in SuSiE. In a minority of credible sets, there is a region with a few lead variants in tight LD and low LD to others in a region. In these occasions, if sum of PIPs of those in tight LD is below 0.95, SuSiE adds low LD variants to get 95% credible sets. However, since those low LD variants are not part of "pure"/reliable credible set, purity filtering filters the whole credible set if minimum r2 between variants is lower than the given threshold. To enable a post-hoc purity filtering, it is set as 0 by default but users are *strongly encouraged* to do a purity filtering based on cs_min_r2 (default original SuSiE filter 0.5) value or low_purity flag. In many occasions, the lead tight LD variants form truly the credible set of variants, and one option, depending on use case, would be post-hoc filtering variants in a credible set by r2 values (which results in < 95% credible set).
 
 
 ## Output descriptions
