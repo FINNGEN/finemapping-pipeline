@@ -20,7 +20,7 @@ Please run [`finemap.wdl`](wdl/finemap.wdl) on a cromwell server with an appropr
 Configurable options include:
 - `finemap.sumstats_pattern`: a path to GWAS summary statistics where `{PHENO}` is a magic keyword to be replaced by an actual phenotype name in `finemap.phenolistfile`
 - `finemap.phenotypes`: a list of phenotypes to fine-map
-- `finemap.preprocess.rsid_col`: a column name of rsid / variant id
+- `finemap.preprocess.rsid_col`: a column name of rsid / variant id. If `finemap.preprocess.set_variant_id` is `true`, this option is disregarded.
 - `finemap.preprocess.chromosome_col`: a column name of chromosome
 - `finemap.preprocess.position_col`: a column name of position
 - `finemap.preprocess.allele1_col`: a column name of reference allele (by default)
@@ -36,6 +36,7 @@ Configurable options include:
     - `SPACE`: `' '`
 - `finemap.preprocess.scale_se_by_pval`: an option to scale standard error based on p-value
 - `finemap.preprocess.x_chromosome`: an option to include X-chromosome. It assumes females coded as 0/1/2 and males coded as 0/2.
+- `finemap.preprocess.set_variant_id`: an option to specify whether to set variant ids as `chr:pos:ref:alt`. If `false`, `finemap.preprocess.rsid_col` is required.
 - `finemap.preprocess.p_threshold`: a p-value threshold to define a fine-mapping region
 - `finemap.ldstore_finemap.n_causal_snps`: a maximum number of causal variants per locus
 - **`finemap.ldstore_finemap.susie.min_cs_corr`**: **[IMPORTANT]** a minimum pairwise correlation value (`r`) for variants in a credibe set for purity filter in SuSiE. In a minority of credible sets, there is a region with a few lead variants in tight LD and low LD to others in a region. In these occasions, if sum of PIPs of those in tight LD is below 0.95, SuSiE adds low LD variants to get 95% credible sets. However, since those low LD variants are not part of "pure"/reliable credible set, purity filtering filters the whole credible set if minimum r2 between variants is lower than the given threshold. To enable a post-hoc purity filtering, it is set as 0 by default but users are *strongly encouraged* to do a purity filtering based on cs_min_r2 (default original SuSiE filter 0.5) value or low_purity flag. In many occasions, the lead tight LD variants form truly the credible set of variants, and one option, depending on use case, would be post-hoc filtering variants in a credible set by r2 values (which results in < 95% credible set).
