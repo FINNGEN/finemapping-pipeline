@@ -39,7 +39,7 @@ Configurable options include:
 - `finemap.preprocess.set_variant_id`: an option to specify whether to set variant ids as `chr:pos:ref:alt`. If `false`, `finemap.preprocess.rsid_col` is required.
 - `finemap.preprocess.p_threshold`: a p-value threshold to define a fine-mapping region
 - `finemap.ldstore_finemap.n_causal_snps`: a maximum number of causal variants per locus
-- **`finemap.ldstore_finemap.susie.min_cs_corr`**: **[IMPORTANT]** a minimum pairwise correlation value (`r`) for variants in a credibe set for purity filter in SuSiE. In a minority of credible sets, there is a region with a few lead variants in tight LD and low LD to others in a region. In these occasions, if sum of PIPs of those in tight LD is below 0.95, SuSiE adds low LD variants to get 95% credible sets. However, since those low LD variants are not part of "pure"/reliable credible set, purity filtering filters the whole credible set if minimum r2 between variants is lower than the given threshold. To enable a post-hoc purity filtering, it is set as 0 by default but users are *strongly encouraged* to do a purity filtering based on cs_min_r2 (default original SuSiE filter 0.5) value or low_purity flag. In many occasions, the lead tight LD variants form truly the credible set of variants, and one option, depending on use case, would be post-hoc filtering variants in a credible set by r2 values (which results in < 95% credible set).
+- **`finemap.ldstore_finemap.susie.min_cs_corr`**: **[IMPORTANT]** a minimum pairwise correlation value (`r`) for variants in a credible set for purity filter in SuSiE. In a minority of credible sets, there is a region with a few lead variants in tight LD and low LD to others in a region. In these occasions, if the sum of PIPs of those in tight LD is below 0.95, SuSiE adds low LD variants to get 95% credible sets. However, since those low LD variants are not part of "pure"/reliable credible set, purity filtering filters the whole credible set if minimum r2 between variants is lower than the given threshold. To enable a post-hoc purity filtering, it is set as 0 by default but users are *strongly encouraged* to do a purity filtering based on cs_min_r2 (default original SuSiE filter 0.5) value or low_purity flag. In many occasions, the lead tight LD variants form truly the credible set of variants, and one option, depending on use case, would be post-hoc filtering variants in a credible set by r2 values (which results in < 95% credible set).
 
 
 ## Output descriptions
@@ -50,7 +50,7 @@ Configurable options include:
 Contains credible set summaries from SuSiE fine-mapping for all genome-wide significant regions.
 
 Columns:
-- region: region for which the fine-mapping was ran.
+- region: region for which the fine-mapping was run.
 - cs: running number for independent credible sets in a region
 - cs_log10bf: Log10 bayes factor of comparing the solution of this model (cs independent credible sets) to cs -1 credible sets.
 - cs_avg_r2: Average correlation R2 between variants in the credible set
@@ -62,14 +62,14 @@ Contains variant summaries with credible set information.
 
 Columns:
 - trait: phenotype
-- region: region for which the fine-mapping was ran.
+- region: region for which the fine-mapping was run.
 - v, rsid: variant ids
 - chromosome
 - position
 - allele1
 - allele2
 - maf: minor allele frequency
-- beta: original nbeta
+- beta: original marginal beta
 - se: original se
 - p: original p
 - mean: posterior mean beta after fine-mapping
@@ -77,7 +77,7 @@ Columns:
 - prob: posterior inclusion probability
 - cs: credible set index within region
 - lead_r2: r2 value to a lead variant (the one with maximum PIP) in a credible set
-- alphax: posterior inclusion probability for the x-th single effect (x := 1..L where L is the number of single effects (causal variants) speficied; default: L = 10).
+- alphax: posterior inclusion probability for the x-th single effect (x := 1..L where L is the number of single effects (causal variants) specified; default: L = 10).
 
 ### FINEMAP outputs
 
@@ -86,7 +86,7 @@ Summary fine-mapping variant configurations from FINEMAP method.
 
 Columns:
 - trait: phenotype
-- region: region for which the fine-mapping was ran.
+- region: region for which the fine-mapping was run.
 - rank: rank of this configuration within a region
 - config: causal variants in this configuration
 - prob: probability across all n independent signal configurations
@@ -104,7 +104,7 @@ Summary statistics on number of independent signals in each region
 
 Columns:
 - trait: phenotype
-- region: region for which the fine-mapping was ran.
+- region: region for which the fine-mapping was run.
 - h2g snp: heritability of this region
 - h2g_sd: standard deviation of snp heritability of this region
 - h2g_lower95: lower limit of 95% CI for snp heritability
@@ -114,11 +114,11 @@ Columns:
 - expectedvalue: expectation (average) of the number of signals
 
 #### PHENOTYPE.FINEMAP.snp.bgz
-Summary statistics of variants and in to what credible set they may belong to.
+Summary statistics of variants and into what credible set they may belong to.
 
 Columns:
 - trait: phenotype
-- region: region for which the fine-mapping was ran.
+- region: region for which the fine-mapping was run.
 - v: variant
 - index: running index
 - rsid: variant id
@@ -127,7 +127,7 @@ Columns:
 - allele1
 - allele2
 - maf: minor allele frequency
-- beta: original nbeta
+- beta: original marginal beta
 - se: original se
 - z: original z
 - prob: posterior inclusion probability
