@@ -10,6 +10,7 @@ task preprocess {
     Int mem
     Boolean scale_se_by_pval
     Boolean x_chromosome
+    Boolean set_variant_id
     String rsid_col
     String chromosome_col
     String position_col
@@ -39,7 +40,6 @@ task preprocess {
             --se-col "${se_col}" \
             --p-col "${p_col}" \
             --delimiter "${delimiter}" \
-            --set-variant-id \
             --grch38 \
             --exclude-MHC \
             --no-upload \
@@ -48,6 +48,7 @@ task preprocess {
             --wdl \
             ${true='--scale-se-by-pval ' false=' ' scale_se_by_pval} \
             ${true='--x-chromosome' false=' ' x_chromosome} \
+            ${true='--set-variant-id ' false=' ' set_variant_id} \
             --p-threshold ${p_threshold} \
             ${true='--min-p-threshold ' false='' defined(minimum_pval)}${minimum_pval}
 
