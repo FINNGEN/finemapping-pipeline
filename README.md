@@ -15,7 +15,7 @@ We compute in-sample dosage LD using [LDstore2](http://www.christianbenner.com/)
 With the inputs of summary statistics and in-sample LD from the steps 1-2, we conduct fine-mapping using [FINEMAP](http://finemap.me/) and [SuSiE](https://github.com/stephenslab/susieR) with the maximum number of causal variants in a locus L = 10.
 
 ## Usage
-Please run [`finemap.wdl`](wdl/finemap.wdl) on a cromwell server with an appropriate json input (e.g., [`finemap_inputs.json`](wdl/finemap_inputs.json)).
+Please run [`finemap.wdl`](wdl/finemap.wdl) on a cromwell server with an appropriate json input (e.g., [`finemap_inputs.json`](wdl/finemap_inputs.json)) and a dependent sub workflow ([`finemap_sub.zip`](wdl/finemap_sub.zip)). Please pay attention to an important configuration below (`finemap.ldstore_finemap.susie.min_cs_corr`) controlling reliability of credible sets and variants!
 
 Configurable options include:
 - `finemap.sumstats_pattern`: a path to GWAS summary statistics where `{PHENO}` is a magic keyword to be replaced by an actual phenotype name in `finemap.phenolistfile`
