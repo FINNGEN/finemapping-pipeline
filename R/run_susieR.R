@@ -81,7 +81,7 @@ summarize.susie.cs <- function(object, orig_vars, R, ..., low_purity_threshold =
       cs$cs_log10bf[i] <- log10(exp(object$lbf[cs$cs[i]]))
       cs$cs_avg_r2[i] <- object$sets$purity$mean.abs.corr[i]^2
       cs$cs_min_r2[i] <- object$sets$purity$min.abs.corr[i]^2
-      cs$low_purity <- object$sets$purity$min.abs.corr[i] < low_purity_threshold
+      cs$low_purity[i] <- object$sets$purity$min.abs.corr[i] < low_purity_threshold
       cs$variable[i] <- paste(object$sets$cs[[i]], collapse = ",")
     }
     variables <- variables[order(variables$variable_prob, decreasing = T), ]
