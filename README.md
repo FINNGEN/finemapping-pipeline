@@ -41,6 +41,10 @@ Configurable options include:
 - `finemap.ldstore_finemap.n_causal_snps`: a maximum number of causal variants per locus
 - **`finemap.ldstore_finemap.susie.min_cs_corr`**: **[IMPORTANT]** a minimum pairwise correlation value (`r`) for variants in a credible set for purity filter in SuSiE. In a minority of credible sets, there is a region with a few lead variants in tight LD and low LD to others in a region. In these occasions, if the sum of PIPs of those in tight LD is below 0.95, SuSiE adds low LD variants to get 95% credible sets. However, since those low LD variants are not part of "pure"/reliable credible set, purity filtering filters the whole credible set if minimum r2 between variants is lower than the given threshold. To enable a post-hoc purity filtering, it is set as 0 by default but users are *strongly encouraged* to do a purity filtering based on cs_min_r2 (default original SuSiE filter 0.5) value or low_purity flag. In many occasions, the lead tight LD variants form truly the credible set of variants, and one option, depending on use case, would be post-hoc filtering variants in a credible set by r2 values (which results in < 95% credible set).
 
+- `finemap.ldstore_finemap.combine.good_cred_r2`: good quality credible set minimum r2 between variants. Controls how filtered summary of credible sets and their variants are reported. See output of [filtered credible set report](#PHENONAME.cred.summary.tsv) ,
+- `finemap.ldstore_finemap.combine.snp_annot_file`: optional file for arbitrary variant annotations to be included in filtered summary credible set reports. Must be bgzipped and tabixed. Remove the whole row if no annotations are to be used. First four columns must be chr pos ref alt
+-`finemap.ldstore_finemap.combine.snp_annot_file_tbi`: tabix index file for the above file. Must be given if annot_file is specified
+- `finemap.ldstore_finemap.combine.snp_annot_fields`: comma separated string of column names to include from the annot_file
 
 ## Output descriptions
 
@@ -56,6 +60,29 @@ Columns:
 - cs_avg_r2: Average correlation R2 between variants in the credible set
 - cs_min_r2: minimum r2 between variants in the credible set
 - cs_size: how many snps does this credible set contain
+
+#### PHENONAME.cred.summary.tsv
+Summary of credible sets where top variant for each CS is included.
+
+Columns:
+- trait: phenotype
+- region: region for which the fine-mapping was run.
+- cs: running number for independent credible sets in a region
+- cs_log10bf: Log10 bayes factor of comparing the solution of this model (cs independent credible sets) to cs -1 credible sets
+- cs_avg_r2:	Average correlation R2 between variants in the credible set
+- cs_min_r2:	minimum r2 between variants in the credible set
+- low_purity: boolean (TRUE,FALSE) indicator if the CS is low purity (low min r2)
+- cs_size: how many snps does this credible set contain
+- good_cs: boolean (TRUE,FALSE) indicator if this CS is considered reliable. IF this is FALSE then top variant reported for the CS will be chosen based on minimum p-value in the credible set, otherwise top variant is chosen by maximum PIP
+- cs_id:
+- v: top variant (chr:pos:ref:alt)
+- p: top variant p-value
+- beta: top variant beta
+- sd: top variant standard deviation
+- prob: overall PIP of the variant in the region
+- cs_specific_prob:	PIP of the variant in the current credible set (this and previous are typically almost identical)
+- 0..n: configured annotation columns. Typical default most_severe,gene_most_severe giving consequence and gene of top variant
+
 
 #### PHENONAME.SUSIE.snp.bgz
 Contains variant summaries with credible set information.
@@ -78,6 +105,25 @@ Columns:
 - cs: credible set index within region
 - lead_r2: r2 value to a lead variant (the one with maximum PIP) in a credible set
 - alphax: posterior inclusion probability for the x-th single effect (x := 1..L where L is the number of single effects (causal variants) specified; default: L = 10).
+
+#### PHENONAME.snp.filter.tsv
+snps that are part of good quality credible sets as reported in `PHENONAME.cred.summary.tsv` file.
+
+- trait phenotype
+- region region for which the fine-mapping was run
+- v	variantid (chr:pos:ref:alt)
+- cs running credible set id within region
+- cs_specific_prob	posterior inclusion probability for this CS.
+- chromosome
+- position
+- allele1
+- allele2
+- maf
+- beta	original association beta
+- p	original pvalue
+- se	original se
+- most_severe most severe consequence of the variant
+- gene_most_severe gene corresponding to most severe consequence
 
 ### FINEMAP outputs
 

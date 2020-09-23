@@ -135,7 +135,13 @@ task finemap {
             print "${zfile}", "${bcor}", "${prefix}.snp", "${prefix}.config", "${prefix}.cred", n_samples, "${prefix}.log"
         }' > ${master}
 
-        prior_std=$(zcat ${phenofile} | awk -v ph=${pheno} '
+		catcmd="cat"
+		if [[ ${phenofile} == *.gz ]] || [[ ${phenofile} == *.bgz ]]
+		then
+			catcmd="zcat"
+		fi
+
+        prior_std=$($catcmd ${phenofile} | awk -v ph=${pheno} '
         BEGIN {
             FS = "\t"
         }
@@ -245,7 +251,14 @@ task susie {
 
     command <<<
         #!/usr/bin/env bash
-        var_y=$(zcat ${phenofile} | awk -v ph=${pheno} '
+
+		catcmd="cat"
+		if [[ ${phenofile} == *.gz ]] || [[ ${phenofile} == *.bgz ]]
+		then
+			catcmd="zcat"
+		fi
+
+        var_y=$($catcmd ${phenofile} | awk -v ph=${pheno} '
         BEGIN {
             FS = "\t"
         }
@@ -336,6 +349,10 @@ task combine {
     String docker
     Int cpu
     Int mem
+    Float good_cred_r2
+    File? snp_annot_file
+    File? snp_annot_file_tbi
+    String? snp_annot_fields
 
     command <<<
 
@@ -507,6 +524,11 @@ task combine {
         }
         ' ${sep=" " susie_cred} | bgzip -c -@ ${cpu} > ${pheno}.SUSIE.cred.bgz
 
+        filter_and_summarize.py --min_r2 ${good_cred_r2} ${pheno}.SUSIE.cred.bgz \
+            ${pheno}.SUSIE.snp.bgz ${pheno}.SUSIE \
+            ${true='--variant_annot ' false='' defined(snp_annot_file)}${snp_annot_file} \
+            ${true='--variant_annot_cols ' false='' defined(snp_annot_fields)}${snp_annot_fields} \
+
     >>>
 
     output {
@@ -519,6 +541,8 @@ task combine {
         File out_susie_snp_tbi = pheno + ".SUSIE.snp.bgz.tbi"
         File out_susie_cred = pheno + ".SUSIE.cred.bgz"
 
+        File out_susie_snp_filtered = pheno + ".SUSIE.snp.filter.tsv"
+        File out_susie_cred_summary = pheno + ".SUSIE.cred.summary.tsv"
     }
 
     runtime {

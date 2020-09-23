@@ -54,7 +54,7 @@ ENV HTSLIB_CONFIGURE_OPTIONS "--disable-bz2 --disable-lzma"
 RUN pip install --no-cache cython && \
     pip install --no-cache numpy scipy pandas pybedtools
 ENV PYTHONPATH /home:${PYTHONPATH}
-COPY python/make_finemap_inputs.py /usr/local/bin/
+COPY python/make_finemap_inputs.py python/filter_and_summarize.py /usr/local/bin/
 COPY python/utils.py /home/
 RUN chmod +x /usr/local/bin/make_finemap_inputs.py
 
