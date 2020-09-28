@@ -349,10 +349,6 @@ task combine {
     String docker
     Int cpu
     Int mem
-    Float good_cred_r2
-    File? snp_annot_file
-    File? snp_annot_file_tbi
-    String? snp_annot_fields
 
     command <<<
 
@@ -524,15 +520,9 @@ task combine {
         }
         ' ${sep=" " susie_cred} | bgzip -c -@ ${cpu} > ${pheno}.SUSIE.cred.bgz
 
-        filter_and_summarize.py --min_r2 ${good_cred_r2} ${pheno}.SUSIE.cred.bgz \
-            ${pheno}.SUSIE.snp.bgz ${pheno}.SUSIE \
-            ${true='--variant_annot ' false='' defined(snp_annot_file)}${snp_annot_file} \
-            ${true='--variant_annot_cols ' false='' defined(snp_annot_fields)}${snp_annot_fields} \
-
     >>>
 
     output {
-
         File out_finemap_snp = pheno + ".FINEMAP.snp.bgz"
         File out_finemap_snp_tbi = pheno + ".FINEMAP.snp.bgz.tbi"
         File out_finemap_config = pheno + ".FINEMAP.config.bgz"
@@ -540,13 +530,50 @@ task combine {
         File out_susie_snp = pheno + ".SUSIE.snp.bgz"
         File out_susie_snp_tbi = pheno + ".SUSIE.snp.bgz.tbi"
         File out_susie_cred = pheno + ".SUSIE.cred.bgz"
+    }
 
+    runtime {
+
+        docker: "${docker}"
+        cpu: "${cpu}"
+        memory: "${mem} GB"
+        disks: "local-disk 30 HDD"
+        zones: "${zones}"
+        preemptible: 2
+        noAddress: true
+    }
+}
+
+
+task filter_and_summarize{
+    String zones
+    String docker
+    Int cpu
+    Int mem
+    String pheno
+    File susie_snps
+    File susie_snps_tbi
+    File susie_cred
+    File? snp_annot_file
+    File? snp_annot_file_tbi
+    String? snp_annotation_fields
+    String? set_variant_id_map_chr
+    Float good_cred_r2
+    Int mock
+    command <<<
+        filter_and_summarize.py --min_r2 ${good_cred_r2} ${susie_cred} \
+            ${susie_snps} ${pheno}.SUSIE \
+            ${true='--variant_annot ' false='' defined(snp_annot_file)}${snp_annot_file} \
+            ${true='--variant_annot_cols ' false='' defined(snp_annotation_fields)}${snp_annotation_fields} \
+            ${true='--set_variant_id_map_chr ' false='' defined(set_variant_id_map_chr)}${set_variant_id_map_chr}
+    >>>
+
+    output {
         File out_susie_snp_filtered = pheno + ".SUSIE.snp.filter.tsv"
         File out_susie_cred_summary = pheno + ".SUSIE.cred.summary.tsv"
     }
 
     runtime {
-
         docker: "${docker}"
         cpu: "${cpu}"
         memory: "${mem} GB"
@@ -565,6 +592,8 @@ workflow ldstore_finemap {
     Int n_causal_snps
     Array[File] zfiles
     File phenofile
+
+    String? set_variant_id_map_chr
 
     scatter (zfile in zfiles) {
 
@@ -589,4 +618,11 @@ workflow ldstore_finemap {
             finemap_config=finemap.config, finemap_snp=finemap.snp, finemap_cred_files=finemap.cred_files, finemap_log=finemap.log,
             susie_snp=susie.snp, susie_cred=susie.cred
     }
+
+    call filter_and_summarize {
+        input: zones=zones, pheno=pheno, docker=docker, susie_snps=combine.out_susie_snp,
+            susie_snps_tbi=combine.out_susie_snp_tbi, susie_cred=combine.out_susie_cred,
+            set_variant_id_map_chr=set_variant_id_map_chr, mock=1
+    }
+
 }

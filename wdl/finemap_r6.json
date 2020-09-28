@@ -19,6 +19,7 @@
     "finemap.preprocess.scale_se_by_pval": true,
     "finemap.preprocess.x_chromosome": true,
     "finemap.preprocess.set_variant_id": true,
+    "finemap.set_variant_id_map_chr":"23=X",
     "finemap.preprocess.p_threshold": 0.000001,
     "finemap.ldstore_finemap.ldstore.sample": "gs://r6_data/R6_271341_samples.sample",
     "finemap.ldstore_finemap.ldstore.bgen_pattern": "gs://r6_data/bgen/v2/chrom/finngen_R6_{CHR}.bgen",
@@ -34,8 +35,10 @@
     "finemap.ldstore_finemap.susie.mem": 208,
     "finemap.ldstore_finemap.combine.cpu": 1,
     "finemap.ldstore_finemap.combine.mem": 7,
-    "finemap.ldstore_finemap.combine.good_cred_r2": 0.25,
-    "finemap.ldstore_finemap.combine.snp_annot_file":"gs://r6_data/annotations/R6_annotated_variants_consequence.gz",
-    "finemap.ldstore_finemap.combine.snp_annot_file_tbi":"gs://r6_data/annotations/R6_annotated_variants_consequence.gz.tbi",
-    "finemap.ldstore_finemap.combine.snp_annot_fields":"most_severe,gene_most_severe"
+    "finemap.ldstore_finemap.filter_and_summarize.good_cred_r2": 0.25,
+    "finemap.ldstore_finemap.filter_and_summarize.snp_annot_file":"gs://r6_data/annotations/R6_annotated_variants_consequence.gz",
+    "finemap.ldstore_finemap.filter_and_summarize.snp_annot_file_tbi":"gs://r6_data/annotations/R6_annotated_variants_consequence.gz.tbi",
+    "finemap.ldstore_finemap.filter_and_summarize.snp_annotation_fields":"most_severe,gene_most_severe",
+    "finemap.ldstore_finemap.filter_and_summarize.cpu":1,
+    "finemap.ldstore_finemap.filter_and_summarize.mem":2
 }

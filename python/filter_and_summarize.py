@@ -24,9 +24,9 @@ class InvalidInputException(Exception):
 
 class Region:
     def __init__(self,chr,start,stop):
-        self.chr = chr.lstrip("chr")
-        self.start=start
-        self.stop=stop
+        self.chr = chr.replace("chr","")
+        self.start = int(start) if int(start) > 0 else 1
+        self.stop = int(stop)
 
 class CSReport:
     def __init__(self,cs_id,comp_col,comp_val, comp_func, best_row, cs_dat):
@@ -52,7 +52,9 @@ def process_cred(cred_file, min_r2):
 
 def get_variant_annots( regions, annot_file, outcols=["gene_most_severe","most_severe"], cpra=["chr","pos","ref","alt"] ):
     regions_file = tempfile.NamedTemporaryFile('w')
-    for r in regions:
+    regions_file = open("tabixregion.file",'w')
+
+    for r in sorted( regions, key=lambda r: (r.chr,int(r.start)) ):
         regions_file.write('{}\t{}\t{}'.format(r.chr, r.start, r.stop) + "\n")
 
     header = ["chr","pos","ref","alt","gene_most_severe","most_severe"]
@@ -63,8 +65,8 @@ def get_variant_annots( regions, annot_file, outcols=["gene_most_severe","most_s
         raise InvalidInputException("All required columns not in annotation file. Missing:" + ",".join(miscols))
     va = {}
     regions_file.flush()
-    p = Popen(["tabix","-R",regions_file.name,annot_file ],stdout=PIPE, stderr=PIPE)
 
+    p = Popen(["tabix","-R",regions_file.name,annot_file ],stdout=PIPE, stderr=PIPE)
     for v in p.stdout:
         vd = v.strip().split("\t")
         varid="{}:{}:{}:{}".format( vd[hi[cpra[0]]], vd[hi[cpra[1]]], vd[hi[cpra[2]]], vd[hi[cpra[3]]])
@@ -84,6 +86,8 @@ if __name__ == '__main__':
 
     parser.add_argument('--cs_sum_snp_cols', type=str,
                     default="v,rsid,p,beta,sd,prob,cs,cs_specific_prob")
+
+    parser.add_argument('--set_variant_id_map_chr', type=str)
 
     parser.add_argument('--variant_annot', type=str)
     parser.add_argument('--variant_annot_cols', type=str)
@@ -106,7 +110,7 @@ if __name__ == '__main__':
 
         regions_of_cs.append(Region(*split_re.split(csdef.region)))
 
-    sum_snp_cols = [ c.strip() for c in args.cs_sum_snp_cols.split(",")]
+    sum_snp_cols = [c.strip() for c in args.cs_sum_snp_cols.split(",")]
     snp_cols = [c.strip() for c in args.snp_outcols.split(",")]
 
     var_annot_cols=[]
@@ -115,6 +119,7 @@ if __name__ == '__main__':
         var_annot_cols = args.variant_annot_cols.strip().split(",")
         var_annot = get_variant_annots(regions_of_cs,args.variant_annot, var_annot_cols)
 
+
     with open(args.outprefix + ".snp.filter.tsv", 'wt') as snpfile:
         with gzip.open(args.susie_snp, mode='rt') as snps:
             hl = snps.readline()
@@ -122,13 +127,20 @@ if __name__ == '__main__':
             hi = {h:i for i,h in enumerate(hldat)}
             hlen = len(hi)
 
-            missing_sum_snp = set([ c for c in sum_snp_cols + snp_cols if c not in hi ])
+            missing_sum_snp = set([c for c in sum_snp_cols + snp_cols if c not in hi])
 
             if len(missing_sum_snp)>0:
                 raise InvalidInputException("All specified columns (missing:" + ",".join(missing_sum_snp)
                     + ") were not in snp file")
 
             snpfile.write("\t".join([hldat[hi[col]] for col in snp_cols] + var_annot_cols)+ "\n")
+
+            chr_mapback = {}
+            if args.set_variant_id_map_chr:
+                chr_mapback={new:orig for orig, new in map(lambda x: x.split("="),args.set_variant_id_map_chr.split(","))}
+                ## if chr has been appended then change those also
+                chr_mapback.update( {"chr"+new:"chr"+orig for orig, new in map(lambda x: x.split("="),args.set_variant_id_map_chr.split(","))} )
+
             for sl in snps:
                 if sl == "":
                     continue
@@ -142,7 +154,19 @@ if __name__ == '__main__':
                 cs_id = ldat[hi["region"]] + ldat[hi["cs"]]
                 cred_defs = best_vars[cs_id]
 
-                varid = ldat[hi["v"]]
+                def mod(var,map=chr_mapback):
+                     return map[var] if var in map else var
+
+                varid = ldat[hi["v"]].split(":")
+                varid[0] = mod(varid[0])
+                ldat[hi["v"]] = ":".join(varid)
+                varid="{}:{}:{}:{}".format(*varid)
+                rsid = ldat[hi["rsid"]].split("_")
+                rsid[0] = mod(rsid[0])
+                ldat[hi["rsid"]] = "_".join(rsid)
+                ldat[hi["chromosome"]]=mod(ldat[hi["chromosome"]])
+                #print("checking variant annot"  + varid)
+                #print(var_annot.keys()[1:4])
                 va = [] if len(var_annot_cols)==0 else var_annot.get( varid, ["NA"] * len(var_annot_cols) )
 
                 if cred_defs.cs_dat.good_cs:

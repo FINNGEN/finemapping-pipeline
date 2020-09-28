@@ -52,6 +52,7 @@ def read_sumstats(path,
                   delimiter='\s+',
                   recontig=False,
                   set_variant_id=False,
+                  variant_id_chr_map={},
                   flip_beta=False,
                   grch38=False,
                   scale_se_by_pval=False,
@@ -99,8 +100,10 @@ def read_sumstats(path,
     if recontig:
         sumstats['chromosome'] = np.where(chromosome_int < 10, '0' + sumstats.chromosome, sumstats.chromosome)
 
+    sumstats['chromosome'] = sumstats.chromosome.map(lambda x: variant_id_chr_map[x] if x in variant_id_chr_map else x)
+
     if set_variant_id:
-        sumstats['rsid'] = sumstats.chromosome.str.cat(
+        sumstats['rsid'] = sumstats.chromosome.map(lambda x: variant_id_chr_map[x] if x in variant_id_chr_map else x).str.cat(
             [sumstats.position.astype(str), sumstats.allele1, sumstats.allele2], sep=args.variant_id_sep)
         if grch38:
             sumstats['rsid'] = 'chr' + sumstats.rsid
@@ -435,6 +438,11 @@ def main(args):
         max_chrom_int = 23
 
     # read sumstats
+    var_id_chr_map = {}
+
+    if args.set_variant_id_map_chr:
+        var_id_chr_map = { m[0].strip():m[1].strip() for m in map(lambda x: x.split("="), args.set_variant_id_map_chr.split(",")) }
+
     sumstats = map(
         lambda (i, x): read_sumstats(
             x,
@@ -452,6 +460,7 @@ def main(args):
             delimiter=args.delimiter[i],
             recontig=args.recontig[i],
             set_variant_id=args.set_variant_id[i],
+            variant_id_chr_map=var_id_chr_map,
             flip_beta=args.flip_beta[i],
             grch38=args.grch38,
             scale_se_by_pval=args.scale_se_by_pval[i],
@@ -663,6 +672,11 @@ if __name__ == '__main__':
     parser.add_argument('--extra-cols', type=str, nargs='+', help='Extra columns to output in .z files.')
     parser.add_argument('--recontig', action='store_true', default=False)
     parser.add_argument('--set-variant-id', action='store_true', default=False)
+    parser.add_argument('--set-variant-id-map-chr', type=str,
+                        help="Comma separated list of chromosome id remapping to be done for the generated variant. "
+                        "E.g. to map 23 to X and 24 to MT specify 23=X,24=MT."
+                        "This is useful if there is a mismatch in variant id in bgen and summary stats."
+                        )
     parser.add_argument('--flip-beta', action='store_true', default=False)
     parser.add_argument('--grch38', action='store_true', default=False)
     parser.add_argument(
