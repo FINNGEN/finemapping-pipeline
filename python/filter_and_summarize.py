@@ -52,7 +52,7 @@ def process_cred(cred_file, min_r2):
 
 def get_variant_annots( regions, annot_file, outcols=["gene_most_severe","most_severe"], cpra=["chr","pos","ref","alt"] ):
     regions_file = tempfile.NamedTemporaryFile('w')
-    regions_file = open("tabixregion.file",'w')
+    #regions_file = open("tabixregion.file",'w')
 
     for r in sorted( regions, key=lambda r: (r.chr,int(r.start)) ):
         regions_file.write('{}\t{}\t{}'.format(r.chr, r.start, r.stop) + "\n")
@@ -96,6 +96,15 @@ if __name__ == '__main__':
     creds = process_cred(args.susie_cred, args.min_r2)
     best_vars = {}
 
+
+    chr_mapback = {}
+    if args.set_variant_id_map_chr:
+        chr_mapback={new:orig for orig, new in map(lambda x: x.split("="),args.set_variant_id_map_chr.split(","))}
+        ## if chr has been appended then change those also
+        chr_mapback.update( {"chr"+new:"chr"+orig for orig, new in map(lambda x: x.split("="),args.set_variant_id_map_chr.split(","))} )
+    def mod_chr(var,map=chr_mapback):
+         return map[var] if var in map else var
+
     regions_of_cs=[]
     split_re = re.compile('[:-]')
     for cs_id, csdef in creds[1].iteritems():
@@ -107,8 +116,9 @@ if __name__ == '__main__':
         comp_func =  bigger if csdef.good_cs else smaller
         best_vars[cs_id] = CSReport(cs_id=cs_id, comp_col=comp_col, comp_val=None,
                                             comp_func=comp_func, best_row=[], cs_dat=csdef)
-
-        regions_of_cs.append(Region(*split_re.split(csdef.region)))
+        reg = split_re.split(csdef.region)
+        reg[0] = mod_chr(reg[0])
+        regions_of_cs.append(Region(*reg))
 
     sum_snp_cols = [c.strip() for c in args.cs_sum_snp_cols.split(",")]
     snp_cols = [c.strip() for c in args.snp_outcols.split(",")]
@@ -135,12 +145,6 @@ if __name__ == '__main__':
 
             snpfile.write("\t".join([hldat[hi[col]] for col in snp_cols] + var_annot_cols)+ "\n")
 
-            chr_mapback = {}
-            if args.set_variant_id_map_chr:
-                chr_mapback={new:orig for orig, new in map(lambda x: x.split("="),args.set_variant_id_map_chr.split(","))}
-                ## if chr has been appended then change those also
-                chr_mapback.update( {"chr"+new:"chr"+orig for orig, new in map(lambda x: x.split("="),args.set_variant_id_map_chr.split(","))} )
-
             for sl in snps:
                 if sl == "":
                     continue
@@ -154,17 +158,14 @@ if __name__ == '__main__':
                 cs_id = ldat[hi["region"]] + ldat[hi["cs"]]
                 cred_defs = best_vars[cs_id]
 
-                def mod(var,map=chr_mapback):
-                     return map[var] if var in map else var
-
                 varid = ldat[hi["v"]].split(":")
-                varid[0] = mod(varid[0])
+                varid[0] = mod_chr(varid[0])
                 ldat[hi["v"]] = ":".join(varid)
                 varid="{}:{}:{}:{}".format(*varid)
                 rsid = ldat[hi["rsid"]].split("_")
-                rsid[0] = mod(rsid[0])
+                rsid[0] = mod_chr(rsid[0])
                 ldat[hi["rsid"]] = "_".join(rsid)
-                ldat[hi["chromosome"]]=mod(ldat[hi["chromosome"]])
+                ldat[hi["chromosome"]]=mod_chr(ldat[hi["chromosome"]])
                 #print("checking variant annot"  + varid)
                 #print(var_annot.keys()[1:4])
                 va = [] if len(var_annot_cols)==0 else var_annot.get( varid, ["NA"] * len(var_annot_cols) )

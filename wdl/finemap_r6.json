@@ -2,7 +2,7 @@
     "finemap.zones": "europe-west1-b",
     "finemap.docker": "eu.gcr.io/finngen-refinery-dev/finemap-suite:mktest1",
     "finemap.sumstats_pattern": "gs://finngen-production-library-green/finngen_R6/finngen_R6_analysis_data/summary_stats/release/finngen_R6_{PHENO}.gz",
-    "finemap.phenolistfile": "gs://r6_data/finemap/conf/r6_demopheno_plus",
+    "finemap.phenolistfile": "gs://r6_data/finemap/conf/4_missing",
     "finemap.phenotypes": "gs://r6_data/pheno/finngen_R6_cov_pheno_V1.txt.gz",
     "finemap.preprocess.cpu": 1,
     "finemap.preprocess.mem": 52,

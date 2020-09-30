@@ -559,7 +559,7 @@ task filter_and_summarize{
     String? snp_annotation_fields
     String? set_variant_id_map_chr
     Float good_cred_r2
-    Int mock
+    
     command <<<
         filter_and_summarize.py --min_r2 ${good_cred_r2} ${susie_cred} \
             ${susie_snps} ${pheno}.SUSIE \
@@ -622,7 +622,7 @@ workflow ldstore_finemap {
     call filter_and_summarize {
         input: zones=zones, pheno=pheno, docker=docker, susie_snps=combine.out_susie_snp,
             susie_snps_tbi=combine.out_susie_snp_tbi, susie_cred=combine.out_susie_cred,
-            set_variant_id_map_chr=set_variant_id_map_chr, mock=1
+            set_variant_id_map_chr=set_variant_id_map_chr
     }
 
 }
