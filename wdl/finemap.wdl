@@ -98,7 +98,7 @@ workflow finemap {
     scatter (pheno in phenos) {
 
         call preprocess {
-            input: zones=zones, docker=docker, pheno=pheno,
+            input: zones=zones, docker="eu.gcr.io/finngen-refinery-dev/finemap-suite:mktest1", pheno=pheno,
                 sumstats_pattern=sumstats_pattern,set_variant_id_map_chr=set_variant_id_map_chr
         }
 
