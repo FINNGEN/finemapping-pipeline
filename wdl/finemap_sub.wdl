@@ -103,7 +103,7 @@ task ldstore {
 
         docker: "${docker}"
         cpu: "${cpu}"
-        memory: "${mem} GB"
+        memory: "256 GB"
         disks: "local-disk 200 HDD"
         zones: "${zones}"
         preemptible: 2
@@ -187,7 +187,16 @@ task finemap {
             --log \
             --n-causal-snps ${n_causal_snps} \
             --n-threads $n_threads \
-            --prior-std $prior_std
+            --prior-std $prior_std 2> >(tee -a stderr.log >&2)
+
+        ## in case of invalid input or other error. finemap does not error out but just prints to
+        ## stderr.
+        grep -i error stderr.log
+        if [[  $? -eq 0  ]];
+        then
+            echo "Error occurred in finemap run!!!"
+            exit 1
+        fi
 
         # Merge p column
         cp ${prefix}.snp ${prefix}.snp.temp
@@ -328,7 +337,7 @@ task susie {
 
         docker: "${docker}"
         cpu: "${cpu}"
-        memory: "${mem} GB"
+        memory: "365 GB"
         disks: "local-disk 100 HDD"
         zones: "${zones}"
         preemptible: 2
