@@ -25,6 +25,7 @@ task preprocess {
     # does not include regions with lead snp < this
     Float p_threshold
     Float? minimum_pval
+    String? set_variant_id_map_chr
 
     command {
 
@@ -49,6 +50,7 @@ task preprocess {
             ${true='--scale-se-by-pval ' false=' ' scale_se_by_pval} \
             ${true='--x-chromosome' false=' ' x_chromosome} \
             ${true='--set-variant-id ' false=' ' set_variant_id} \
+            ${true='--set-variant-id-map-chr ' false=' ' defined(set_variant_id_map_chr)}${set_variant_id_map_chr} \
             --p-threshold ${p_threshold} \
             ${true='--min-p-threshold ' false='' defined(minimum_pval)}${minimum_pval}
 
@@ -91,16 +93,19 @@ workflow finemap {
     File phenotypes
 
     Array[String] phenos = read_lines(phenolistfile)
+    String? set_variant_id_map_chr
 
     scatter (pheno in phenos) {
 
         call preprocess {
-            input: zones=zones, docker=docker, pheno=pheno, sumstats_pattern=sumstats_pattern
+            input: zones=zones, docker=docker, pheno=pheno,
+                sumstats_pattern=sumstats_pattern,set_variant_id_map_chr=set_variant_id_map_chr
         }
 
         if( preprocess.had_results) {
             call sub.ldstore_finemap {
-                input: zones=zones, docker=docker, pheno=pheno, zfiles=preprocess.zfiles, phenofile=phenotypes, pheno=pheno
+                input: zones=zones, docker=docker, pheno=pheno, zfiles=preprocess.zfiles,
+                    phenofile=phenotypes, pheno=pheno,set_variant_id_map_chr=set_variant_id_map_chr
             }
         }
 
