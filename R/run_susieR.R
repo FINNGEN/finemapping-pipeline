@@ -121,10 +121,30 @@ susie_ss_wrapper <- function(df, R, n, L, var_y = 1.0, prior_weights = NULL, min
     )
   cs <- cs_summary$cs
 
+  cs_summary <- summarize.susie.cs(fitted_bhat, df, R, low_purity_threshold = low_purity_threshold)
+  sets_95 <- fitted_bhat$sets
+  fitted_bhat$sets <- susieR::susie_get_cs(fitted_bhat, coverage = 0.99, Xcorr = R, min_abs_corr = min_abs_corr)
+  cs_summary_99 <- summarize.susie.cs(fitted_bhat, df, R, low_purity_threshold = low_purity_threshold)
+  fitted_bhat$sets_99 <- fitted_bhat$sets
+  fitted_bhat$sets <- sets_95
+
+  variables_99 <-
+    cs_summary_99$vars %>%
+    rename(prob = variable_prob) %>%
+    arrange(variable) %>%
+    mutate(
+      mean = susie_get_posterior_mean(fitted_bhat),
+      sd = susie_get_posterior_sd(fitted_bhat)
+    )
+
+  colnames(variables_99) <- paste0(colnames(variables_99),"_99")
+
   return(list(
     susie_obj = fitted_bhat,
     variables = variables,
-    cs = cs
+    variables_99 = variables_99,
+    cs = cs,
+    cs_99 = cs_summary_99$cs
   ))
 }
 
@@ -178,13 +198,24 @@ main <- function(args) {
     min_abs_corr = args$min_cs_corr, low_purity_threshold = args$low_purity_threshold
   )
   susie_obj <- res$susie_obj
-  variables <- cbind(df, res$variables[c("mean", "sd", "prob", "cs", "cs_specific_prob", "low_purity", "lead_r2")])
+  variables <- cbind(df,
+                res$variables[c("mean", "sd", "prob", "cs", "cs_specific_prob", "low_purity", "lead_r2")],
+                res$variables_99[c("mean_99", "sd_99", "prob_99", "cs_99", "cs_specific_prob_99", "low_purity_99", "lead_r2_99")]
+                )
   cs <- res$cs
   if (!is.null(cs)) {
     cs <- cs %>%
       mutate(cs_size = unlist(lapply(str_split(variable, ","), length))) %>%
       select(-variable)
   }
+
+  cs_99 <- res$cs_99
+  if (!is.null(cs)) {
+    cs_99 <- cs_99 %>%
+      mutate(cs_size = unlist(lapply(str_split(variable, ","), length))) %>%
+      select(-variable)
+  }
+
   if (args$write_alpha) {
     alpha <- t(susie_obj$alpha)
     colnames(alpha) <- paste0("alpha", seq(ncol(alpha)))
@@ -204,6 +235,7 @@ main <- function(args) {
 
   write.table(variables, args$snp, sep = "\t", row.names = F, quote = F)
   write.table(cs, args$cred, sep = "\t", row.names = F, quote = F)
+  write.table(cs_99, paste0(args$cred,"_99"), sep = "\t", row.names = F, quote = F)
 }
 
 parser <- ArgumentParser()

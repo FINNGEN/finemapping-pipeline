@@ -21,6 +21,7 @@ task preprocess {
     String se_col
     String p_col
     String delimiter
+    Int max_region_width
     # can be helpful if adding finemapping with relaxed threshold after more stringent has already ben run.
     # does not include regions with lead snp < this
     Float p_threshold
@@ -46,13 +47,14 @@ task preprocess {
             --no-upload \
             --prefix ${pheno} \
             --out ${pheno} \
-            --wdl \
+            --max-region-width ${max_region_width} \
             ${true='--scale-se-by-pval ' false=' ' scale_se_by_pval} \
             ${true='--x-chromosome' false=' ' x_chromosome} \
             ${true='--set-variant-id ' false=' ' set_variant_id} \
             ${true='--set-variant-id-map-chr ' false=' ' defined(set_variant_id_map_chr)}${set_variant_id_map_chr} \
             --p-threshold ${p_threshold} \
-            ${true='--min-p-threshold ' false='' defined(minimum_pval)}${minimum_pval}
+            ${true='--min-p-threshold ' false='' defined(minimum_pval)}${minimum_pval} \
+            --wdl 
 
             res=`cat ${pheno}_had_results`
 

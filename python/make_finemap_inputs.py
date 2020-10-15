@@ -146,6 +146,20 @@ def read_sumstats(path,
     return sumstats
 
 
+def merge_regions(regions, max_region_width):
+    incl_regs = []
+    incl_regs.append(regions.iloc[0,])
+    addlast=False
+    for i in range(1,regions.shape[0]):
+        row = regions.iloc[i,]
+        last = incl_regs[-1]
+        if last.chrom==row.chrom and last.end >= row.start and row.end - last.start <= max_region_width:
+            last.end = row.end
+        else:
+            incl_regs.append(row)
+    return  pd.DataFrame(incl_regs)
+
+
 def generate_bed(sumstats,
                  p_threshold=5e-8,
                  maf_threshold=0,
@@ -156,7 +170,8 @@ def generate_bed(sumstats,
                  MHC_start=25e6,
                  MHC_end=34e6,
                  wdl=False,
-                 min_p_threshold=None):
+                 min_p_threshold=None,
+                 max_region_width=np.inf):
     chisq_threshold = sp.stats.norm.ppf(p_threshold / 2) ** 2
     max_chisq_threshold = (sp.stats.norm.ppf(min_p_threshold / 2)**2) if min_p_threshold is not None else None
 
@@ -196,9 +211,14 @@ def generate_bed(sumstats,
         lead_snps.append(lead_snp)
 
     if len(bed_frames) > 0:
-        bed = BedTool.from_dataframe(pd.concat(bed_frames).sort_values(['chrom', 'start']))
+        regions = pd.concat(bed_frames).sort_values(['chrom', 'start'])
         if not no_merge:
-            bed = bed.merge()
+            print("Merging regions. Before")
+            print(regions)
+            regions = merge_regions(regions, args.max_region_width)
+            print("After:")
+            print(regions)
+        bed = BedTool.from_dataframe(regions)
         lead_snps = pd.concat(lead_snps, axis=1).T
     else:
         bed = BedTool.from_dataframe(pd.DataFrame(columns=['chrom', 'start', 'end']))
@@ -467,11 +487,15 @@ def main(args):
             extra_cols=args.extra_cols
         ), enumerate(args.sumstats))
 
+
     if args.bed is None:
         logger.info('Generating bed')
-        merged_bed, lead_snps = generate_bed(sumstats, args.p_threshold, args.maf_threshold, args.window, args.no_merge,
-                                             args.grch38, args.exclude_MHC, args.MHC_start, args.MHC_end, args.wdl,
-                                             args.min_p_threshold)
+        merged_bed, lead_snps = generate_bed(sumstats, p_threshold=args.p_threshold, maf_threshold=args.maf_threshold,
+                                            window=args.window, no_merge=args.no_merge,
+                                            grch38=args.grch38, exclude_MHC=args.exclude_MHC,
+                                            MHC_start=args.MHC_start, MHC_end=args.MHC_end, wdl=args.wdl,
+                                            min_p_threshold=args.min_p_threshold,
+                                            max_region_width=args.max_region_width)
         lead_snps.to_csv(args.out + '.lead_snps.txt', sep='\t', index=False)
     else:
         i = 0
@@ -484,7 +508,9 @@ def main(args):
         bed['chromosome'] = bed.chromosome.map(CHROM_MAPPING_INT)
         merged_bed = BedTool.from_dataframe(bed)
         if not args.no_merge:
-            merged_bed = merged_bed.merge()
+            regions = merge_regions(bed, args.max_region_width)
+            merged_bed = BedTool.from_dataframe(bed)
+
     logger.info(merged_bed)
 
     # write had results indicator file for WDL purposes
@@ -634,6 +660,10 @@ if __name__ == '__main__':
                         default=np.inf,
                         help='Maximum number of variants limit for a region to finemap (only applies to task files)')
     parser.add_argument('--window', type=int, default=1.5e6)
+    parser.add_argument('--max-region-width',
+                        type=int,
+                        default=np.inf,
+                        help='Maximum width of finemap regions after possible merge')
     parser.add_argument('--no-merge', action='store_true', help='Do not merge overlapped regions')
     parser.add_argument('--null-region', action='store_true')
     parser.add_argument('--no-upload', action='store_true')

@@ -44,7 +44,7 @@ def process_cred(cred_file, min_r2):
         raise InvalidInputException("All required columns not present in credible set file.")
 
     cred["good_cs"] = cred.cs_min_r2 > min_r2
-    cred["cs_id"] = cred.apply( lambda row: row.region + str(row.cs),
+    cred["cs_id"] = cred.apply( lambda row: row.region + "_" + str(row.cs),
                                 axis=1)
     outcols = cred.columns.tolist()
     return (outcols,{t.cs_id:t for t in cred.itertuples(index=False)})
@@ -74,6 +74,17 @@ def get_variant_annots( regions, annot_file, outcols=["gene_most_severe","most_s
 
     return va
 
+def check_args(args):
+
+    if args.snp_outcols_header:
+        if len(args.snp_outcols.split(",")) != len(args.snp_outcols_header.split(",")):
+            raise InvalidInputException("Wrong number of columns given for snp output header.")
+
+    if args.cs_sum_snp_cols_header:
+        if len(args.cs_sum_snp_cols.split(",")) != len(args.cs_sum_snp_cols_header.split(",")):
+            raise InvalidInputException("Wrong number of columns given for cred set output header.")
+
+
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('susie_cred', type=str)
@@ -82,10 +93,24 @@ if __name__ == '__main__':
 
     parser.add_argument('--min_r2', type=float, default=0.25)
     parser.add_argument('--snp_outcols', type=str,
-                    default="trait,region,v,cs,cs_specific_prob,chromosome,position,allele1,allele2,maf,beta,p,se")
+                        default="trait,region,v,cs,cs_specific_prob,chromosome,position,allele1,allele2,maf,beta,p,se")
+
+    parser.add_argument('--snp_outcols_header', type=str,
+                        help="override column names in output")
 
     parser.add_argument('--cs_sum_snp_cols', type=str,
-                    default="v,rsid,p,beta,sd,prob,cs,cs_specific_prob")
+                        default="v,rsid,p,beta,sd,prob,cs,cs_specific_prob")
+
+    parser.add_argument('--cs_sum_snp_cols_header', type=str,
+                        help="override column names in output")
+
+    parser.add_argument('--cs_column', type=str, default="cs", help="Column name to use for cs id")
+    parser.add_argument('--pip_column', type=str, default="cs_specific_prob", help="Column name to use for PIP")
+
+    parser.add_argument('--extend_cs_column', type=str,
+        help="Column name to use for cs id if e.g. 95%cs results will be supplemented by snps from 99% cs.")
+    parser.add_argument('--extend_pip_column', type=str,
+        help="Column name to use for PIP id if e.g. 95%cs results will be supplemented by snps from 99% cs.")
 
     parser.add_argument('--set_variant_id_map_chr', type=str)
 
@@ -93,9 +118,11 @@ if __name__ == '__main__':
     parser.add_argument('--variant_annot_cols', type=str)
 
     args = parser.parse_args()
+
+    check_args(args)
+
     creds = process_cred(args.susie_cred, args.min_r2)
     best_vars = {}
-
 
     chr_mapback = {}
     if args.set_variant_id_map_chr:
@@ -108,7 +135,7 @@ if __name__ == '__main__':
     regions_of_cs=[]
     split_re = re.compile('[:-]')
     for cs_id, csdef in creds[1].iteritems():
-        comp_col = "cs_specific_prob" if csdef.good_cs else "p"
+        comp_col = args.pip_column if csdef.good_cs else "p"
         def smaller(a,b):
              return a is None or operator.lt(b,a)
         def bigger(a,b):
@@ -143,21 +170,31 @@ if __name__ == '__main__':
                 raise InvalidInputException("All specified columns (missing:" + ",".join(missing_sum_snp)
                     + ") were not in snp file")
 
-            snpfile.write("\t".join([hldat[hi[col]] for col in snp_cols] + var_annot_cols)+ "\n")
+            header = snp_cols if args.snp_outcols_header is None else args.snp_outcols_header.split(",")
+            snpfile.write("\t".join(header + var_annot_cols)+ "\n")
 
             for sl in snps:
                 if sl == "":
                     continue
                 ldat = sl.rstrip("\n").split("\t")
-                if ldat[hi["cs"]] == "-1":
+                if ldat[hi[args.cs_column]] == "-1" and ( args.extend_cs_column is None or ldat[hi[args.extend_cs_column]] == "-1"):
                     continue
 
                 if(len(ldat) != hlen):
                     logger.warning("Wrong number of columns in row:" + sl)
 
-                cs_id = ldat[hi["region"]] + ldat[hi["cs"]]
-                cred_defs = best_vars[cs_id]
+                cs_num = ldat[hi[args.cs_column]]
+                cs_id = ldat[hi["region"]] + "_" + cs_num if cs_num != "-1" else ldat[hi[args.extend_cs_column]]
 
+                if cs_id not in best_vars:
+                    if cs_num != "-1":
+                        raise Exception( ("Corresponding credible set ({})"
+                                        " not found in cred file {}").format(cs_id, args.susie_cred))
+                    ## we are looking at a variant that is in extended cs
+                    ## but  part of a CS that is not in basic results so skip.
+                    continue
+
+                cred_defs = best_vars[cs_id]
                 varid = ldat[hi["v"]].split(":")
                 varid[0] = mod_chr(varid[0])
                 ldat[hi["v"]] = ":".join(varid)
@@ -166,10 +203,8 @@ if __name__ == '__main__':
                 rsid[0] = mod_chr(rsid[0])
                 ldat[hi["rsid"]] = "_".join(rsid)
                 ldat[hi["chromosome"]]=mod_chr(ldat[hi["chromosome"]])
-                #print("checking variant annot"  + varid)
-                #print(var_annot.keys()[1:4])
-                va = [] if len(var_annot_cols)==0 else var_annot.get( varid, ["NA"] * len(var_annot_cols) )
 
+                va = [] if len(var_annot_cols)==0 else var_annot.get( varid, ["NA"] * len(var_annot_cols) )
                 if cred_defs.cs_dat.good_cs:
                     snpfile.write("\t".join( [ldat[hi[col]] for col in snp_cols] + va) + "\n")
 
@@ -179,7 +214,8 @@ if __name__ == '__main__':
                     cred_defs.comp_val = float(compval)
 
     with open(args.outprefix + ".cred.summary.tsv", mode='wt') as sumfile:
-        sumfile.write( "\t".join(creds[0]) + "\t" + "\t".join([ hldat[hi[col]] for col in sum_snp_cols ] + var_annot_cols ) + "\n" )
+        header = sum_snp_cols if args.cs_sum_snp_cols_header is None else args.cs_sum_snp_cols_header.split(",")
+        sumfile.write( "\t".join(creds[0]) + "\t" + "\t".join( header + var_annot_cols ) + "\n" )
         for cs_id, rep in best_vars.iteritems():
             orig_cs_dat = creds[1][cs_id]
             varid = rep.best_row[hi["v"]]

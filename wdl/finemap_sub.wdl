@@ -103,7 +103,7 @@ task ldstore {
 
         docker: "${docker}"
         cpu: "${cpu}"
-        memory: "${mem} GB"
+        memory: "256 GB"
         disks: "local-disk 200 HDD"
         zones: "${zones}"
         preemptible: 2
@@ -187,7 +187,16 @@ task finemap {
             --log \
             --n-causal-snps ${n_causal_snps} \
             --n-threads $n_threads \
-            --prior-std $prior_std
+            --prior-std $prior_std 2> >(tee -a stderr.log >&2)
+
+        ## in case of invalid input or other error. finemap does not error out but just prints to
+        ## stderr.
+        grep -i error stderr.log
+        if [[  $? -eq 0  ]];
+        then
+            echo "Error occurred in finemap run!!!"
+            exit 1
+        fi
 
         # Merge p column
         cp ${prefix}.snp ${prefix}.snp.temp
@@ -319,6 +328,7 @@ task susie {
         File log = prefix + ".susie.log"
         File snp = prefix + ".susie.snp"
         File cred = prefix + ".susie.cred"
+        File cred_99 = prefix + ".susie.cred_99"
         File rds = prefix + ".susie.rds"
 
     }
@@ -327,7 +337,7 @@ task susie {
 
         docker: "${docker}"
         cpu: "${cpu}"
-        memory: "${mem} GB"
+        memory: "365 GB"
         disks: "local-disk 100 HDD"
         zones: "${zones}"
         preemptible: 2
@@ -345,6 +355,7 @@ task combine {
     Array[File] finemap_log
     Array[File] susie_snp
     Array[File] susie_cred
+    Array[File] susie_cred_99
     String zones
     String docker
     Int cpu
@@ -520,6 +531,23 @@ task combine {
         }
         ' ${sep=" " susie_cred} | bgzip -c -@ ${cpu} > ${pheno}.SUSIE.cred.bgz
 
+        awk -v pheno=${pheno} '
+        BEGIN {
+            OFS = "\t"
+        }
+        NR == 1 {
+            print "trait", "region", $0
+        }
+        FNR == 1 {
+            match(FILENAME, /(chr[0-9X]+)\.([0-9]+-[0-9]+)\./, a)
+            region = a[1]":"a[2]
+        }
+        FNR > 1 {
+            print pheno, region, $0
+        }
+        ' ${sep=" " susie_cred_99} | bgzip -c -@ ${cpu} > ${pheno}.SUSIE.cred_99.bgz
+
+
     >>>
 
     output {
@@ -530,6 +558,7 @@ task combine {
         File out_susie_snp = pheno + ".SUSIE.snp.bgz"
         File out_susie_snp_tbi = pheno + ".SUSIE.snp.bgz.tbi"
         File out_susie_cred = pheno + ".SUSIE.cred.bgz"
+        File out_susie_cred_99 = pheno + ".SUSIE.cred_99.bgz"
     }
 
     runtime {
@@ -554,23 +583,49 @@ task filter_and_summarize{
     File susie_snps
     File susie_snps_tbi
     File susie_cred
+    File susie_cred_99
     File? snp_annot_file
     File? snp_annot_file_tbi
     String? snp_annotation_fields
     String? set_variant_id_map_chr
     Float good_cred_r2
-    
+
     command <<<
         filter_and_summarize.py --min_r2 ${good_cred_r2} ${susie_cred} \
             ${susie_snps} ${pheno}.SUSIE \
             ${true='--variant_annot ' false='' defined(snp_annot_file)}${snp_annot_file} \
             ${true='--variant_annot_cols ' false='' defined(snp_annotation_fields)}${snp_annotation_fields} \
             ${true='--set_variant_id_map_chr ' false='' defined(set_variant_id_map_chr)}${set_variant_id_map_chr}
+
+        filter_and_summarize.py --min_r2 ${good_cred_r2} ${susie_cred_99} \
+            ${susie_snps} ${pheno}.SUSIE_99 \
+            --cs_column "cs_99" --pip_column "cs_specific_prob_99" \
+            --snp_outcols "trait,region,v,cs_99,cs_specific_prob_99,chromosome,position,allele1,allele2,maf,beta,p,se" \
+            --snp_outcols_header "trait,region,v,cs,cs_specific_prob,chromosome,position,allele1,allele2,maf,beta,p,se" \
+            --cs_sum_snp_cols "v,rsid,p,beta,sd,prob,cs_99,cs_specific_prob_99" \
+            --cs_sum_snp_cols_header "v,rsid,p,beta,sd,prob,cs,cs_specific_prob" \
+            ${true='--variant_annot ' false='' defined(snp_annot_file)}${snp_annot_file} \
+            ${true='--variant_annot_cols ' false='' defined(snp_annotation_fields)}${snp_annotation_fields} \
+            ${true='--set_variant_id_map_chr ' false='' defined(set_variant_id_map_chr)}${set_variant_id_map_chr}
+
+        ## add 95% cs + extended snps from 99.
+        filter_and_summarize.py --min_r2 ${good_cred_r2} ${susie_cred} \
+            ${susie_snps} ${pheno}.SUSIE_extend \
+            --extend_cs_column "cs_99" --extend_pip_column "cs_specific_prob_99" \
+            --snp_outcols "trait,region,v,cs,cs_specific_prob,cs_99,cs_specific_prob_99,chromosome,position,allele1,allele2,maf,beta,p,se" \
+            ${true='--variant_annot ' false='' defined(snp_annot_file)}${snp_annot_file} \
+            ${true='--variant_annot_cols ' false='' defined(snp_annotation_fields)}${snp_annotation_fields} \
+            ${true='--set_variant_id_map_chr ' false='' defined(set_variant_id_map_chr)}${set_variant_id_map_chr}
+
     >>>
 
     output {
         File out_susie_snp_filtered = pheno + ".SUSIE.snp.filter.tsv"
         File out_susie_cred_summary = pheno + ".SUSIE.cred.summary.tsv"
+        File out_susie_snp_filtered_99 = pheno + ".SUSIE_99.snp.filter.tsv"
+        File out_susie_cred_summary_99 = pheno + ".SUSIE_99.cred.summary.tsv"
+        File out_susie_snp_filtered_extend = pheno + ".SUSIE_extend.snp.filter.tsv"
+        File out_susie_cred_summary_extend = pheno + ".SUSIE_extend.cred.summary.tsv"
     }
 
     runtime {
@@ -616,13 +671,13 @@ workflow ldstore_finemap {
     call combine {
         input: zones=zones, docker=docker, pheno=pheno, n_causal_snps=n_causal_snps,
             finemap_config=finemap.config, finemap_snp=finemap.snp, finemap_cred_files=finemap.cred_files, finemap_log=finemap.log,
-            susie_snp=susie.snp, susie_cred=susie.cred
+            susie_snp=susie.snp, susie_cred=susie.cred, susie_cred_99=susie.cred_99
     }
 
     call filter_and_summarize {
         input: zones=zones, pheno=pheno, docker=docker, susie_snps=combine.out_susie_snp,
             susie_snps_tbi=combine.out_susie_snp_tbi, susie_cred=combine.out_susie_cred,
-            set_variant_id_map_chr=set_variant_id_map_chr
+            susie_cred_99=combine.out_susie_cred_99, set_variant_id_map_chr=set_variant_id_map_chr
     }
 
 }
