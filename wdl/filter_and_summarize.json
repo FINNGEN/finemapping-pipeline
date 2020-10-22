@@ -1,0 +1,12 @@
+{
+    "filter_and_summarize.zone": "europe-west1-b",
+    "filter_and_summarize.good_cred_r2": 0.01,
+    "filter_and_summarize.snp_annot_file":"gs://r6_data/annotations/R6_annotated_variants_consequence.gz",
+    "filter_and_summarize.snp_annot_file_tbi":"gs://r6_data/annotations/R6_annotated_variants_consequence.gz.tbi",
+    "filter_and_summarize.snp_annotation_fields":"most_severe,gene_most_severe",
+    "filter_and_summarize.docker":"eu.gcr.io/finngen-refinery-dev/finemap-suite:dfad9e94ede4",
+    "filter_and_summarize.do_filt_summ.cpu":1,
+    "filter_and_summarize.do_filt_summ.mem":2,
+    "filter_and_summarize.set_variant_id_map_chr":"23=X",
+    "filter_and_summarize.res_snpfile_list":"gs://r6_data/finemap/conf/all_susies"
+}
