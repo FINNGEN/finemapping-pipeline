@@ -521,7 +521,8 @@ task combine {
             header_printed=0
         }
         FNR == 1 {
-            if(header_printed==0) {
+            gsub(/[ \t]+$/, "", $0)
+            if(header_printed==0 && $0!="") {
                 print "trait", "region", $0
                 header_printed=1
             };
@@ -532,6 +533,8 @@ task combine {
             print pheno, region, $0
         }
         ' ${sep=" " susie_cred} | bgzip -c -@ ${cpu} > ${pheno}.SUSIE.cred.bgz
+
+        FNR == 1 { gsub(/[ \t]+$/, "", $0); if(header_printed==0 && $0!=""){ print "trait", "region", $0header_printed=1; } }
 
         awk -v pheno=${pheno} '
         BEGIN {
