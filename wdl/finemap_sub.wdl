@@ -518,11 +518,14 @@ task combine {
         awk -v pheno=${pheno} '
         BEGIN {
             OFS = "\t"
-        }
-        NR == 1 {
-            print "trait", "region", $0
+            header_printed=0
         }
         FNR == 1 {
+            gsub(/[ \t]+$/, "", $0)
+            if(header_printed==0 && $0!="") {
+                print "trait", "region", $0
+                header_printed=1
+            };
             match(FILENAME, /(chr[0-9X]+)\.([0-9]+-[0-9]+)\./, a)
             region = a[1]":"a[2]
         }
@@ -534,11 +537,13 @@ task combine {
         awk -v pheno=${pheno} '
         BEGIN {
             OFS = "\t"
-        }
-        NR == 1 {
-            print "trait", "region", $0
+            header_printed=0
         }
         FNR == 1 {
+            if(header_printed==0) {
+                print "trait", "region", $0
+                header_printed=1
+            };
             match(FILENAME, /(chr[0-9X]+)\.([0-9]+-[0-9]+)\./, a)
             region = a[1]":"a[2]
         }
