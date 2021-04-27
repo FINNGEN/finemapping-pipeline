@@ -1,5 +1,5 @@
 {
-    "finemap.zones": "europe-west1-b",
+    "finemap.zones": "europe-west1-b europe-west1-c europe-west1-d",
     "finemap.docker": "eu.gcr.io/finngen-refinery-dev/finemap-suite:dfad9e94ede4",
     "finemap.sumstats_pattern": "gs://finngen-production-library-green/finngen_R6/finngen_R6_analysis_data/summary_stats/release/finngen_R6_{PHENO}.gz",
     "finemap.phenolistfile": "gs://r6_data/finemap/conf/large_region_phenos",
