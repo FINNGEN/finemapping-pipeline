@@ -162,7 +162,8 @@ def generate_bed(sumstats,
                  MHC_end=34e6,
                  wdl=False,
                  min_p_threshold=None,
-                 max_region_width=np.inf):
+                 max_region_width=np.inf,
+                 window_shrink_ratio=0.9):
     chisq_threshold = sp.stats.norm.ppf(p_threshold / 2) ** 2
     max_chisq_threshold = (sp.stats.norm.ppf(min_p_threshold / 2)**2) if min_p_threshold is not None else None
 
@@ -220,12 +221,12 @@ def generate_bed(sumstats,
                 # filter to oversized regions
                 sumstats = map(lambda x: filter_sumstat(x, bed_oversized), sumstats)
 
-                # recursion with window * 0.8
+                # recursion with current window size * window_shrink_ratio
                 bed2, lead_snps2 = generate_bed(
                     sumstats,
                     p_threshold=p_threshold,
                     maf_threshold=maf_threshold,
-                    window=window * 0.8,
+                    window=window * window_shrink_ratio,
                     no_merge=no_merge,
                     grch38=grch38,
                     exclude_MHC=exclude_MHC,
@@ -233,7 +234,8 @@ def generate_bed(sumstats,
                     MHC_end=MHC_end,
                     wdl=wdl,
                     min_p_threshold=min_p_threshold,
-                    max_region_width=max_region_width)
+                    max_region_width=max_region_width,
+                    window_shrink_ratio=window_shrink_ratio)
 
                 bed = bed1.cat(bed2).saveas()
                 lead_snps = pd.concat([lead_snps, lead_snps2], axis=0)
@@ -514,7 +516,8 @@ def main(args):
                                             grch38=args.grch38, exclude_MHC=args.exclude_MHC,
                                             MHC_start=args.MHC_start, MHC_end=args.MHC_end, wdl=args.wdl,
                                             min_p_threshold=args.min_p_threshold,
-                                            max_region_width=args.max_region_width)
+                                            max_region_width=args.max_region_width,
+                                            window_shrink_ratio=args.window_shrink_ratio)
         lead_snps.to_csv(args.out + '.lead_snps.txt', sep='\t', index=False)
     else:
         i = 0
@@ -683,6 +686,10 @@ if __name__ == '__main__':
                         type=int,
                         default=np.inf,
                         help='Maximum width of finemap regions after possible merge')
+    parser.add_argument('--window-shrink-ratio',
+                        type=float,
+                        default=0.9,
+                        help='Ratio to recursively shrink a flanking window size')
     parser.add_argument('--no-merge', action='store_true', help='Do not merge overlapped regions')
     parser.add_argument('--null-region', action='store_true')
     parser.add_argument('--no-upload', action='store_true')
