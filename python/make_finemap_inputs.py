@@ -145,19 +145,10 @@ def read_sumstats(path,
     sumstats = sumstats.dropna(subset=['beta', 'se', 'p'])
     return sumstats
 
-
-def merge_regions(regions, max_region_width):
-    incl_regs = []
-    incl_regs.append(regions.iloc[0,])
-    addlast=False
-    for i in range(1,regions.shape[0]):
-        row = regions.iloc[i,]
-        last = incl_regs[-1]
-        if last.chrom==row.chrom and last.end >= row.start and row.end - last.start <= max_region_width:
-            last.end = row.end
-        else:
-            incl_regs.append(row)
-    return  pd.DataFrame(incl_regs)
+def filter_sumstat(df, bed):
+    for f in bed:
+        df = df.loc[((df.chromosome == f.chrom) & (df.position >= f.start) & (df.position <= f.end)), :]
+    return df
 
 
 def generate_bed(sumstats,
@@ -211,15 +202,43 @@ def generate_bed(sumstats,
         lead_snps.append(lead_snp)
 
     if len(bed_frames) > 0:
-        regions = pd.concat(bed_frames).sort_values(['chrom', 'start'])
-        if not no_merge:
-            print("Merging regions. Before")
-            print(regions)
-            regions = merge_regions(regions, args.max_region_width)
-            print("After:")
-            print(regions)
-        bed = BedTool.from_dataframe(regions)
+        bed = BedTool.from_dataframe(pd.concat(bed_frames).sort_values(['chrom', 'start']))
         lead_snps = pd.concat(lead_snps, axis=1).T
+        if not no_merge:
+            print(len(sumstats[0].index))
+            print("Window size {}".format(window))
+            print("Merging regions. Before")
+            print(bed)
+            bed = bed.merge().saveas()
+            bed_oversized = bed.filter(lambda x: len(x) > max_region_width).saveas()
+            print("Oversized regions")
+            print(bed_oversized)
+            if (len(bed_oversized)) > 0:
+                # keep in-size regions
+                bed1 = bed.filter(lambda x: len(x) <= max_region_width).saveas()
+                
+                # filter to oversized regions
+                sumstats = map(lambda x: filter_sumstat(x, bed_oversized), sumstats)
+
+                # recursion with window * 0.8
+                bed2, lead_snps2 = generate_bed(
+                    sumstats,
+                    p_threshold=p_threshold,
+                    maf_threshold=maf_threshold,
+                    window=window * 0.8,
+                    no_merge=no_merge,
+                    grch38=grch38,
+                    exclude_MHC=exclude_MHC,
+                    MHC_start=MHC_start,
+                    MHC_end=MHC_end,
+                    wdl=wdl,
+                    min_p_threshold=min_p_threshold,
+                    max_region_width=max_region_width)
+
+                bed = bed1.cat(bed2).saveas()
+                lead_snps = pd.concat([lead_snps, lead_snps2], axis=0)
+            print("After:")
+            print(bed)
     else:
         bed = BedTool.from_dataframe(pd.DataFrame(columns=['chrom', 'start', 'end']))
         lead_snps = df
@@ -508,7 +527,7 @@ def main(args):
         bed['chromosome'] = bed.chromosome.map(CHROM_MAPPING_INT)
         merged_bed = BedTool.from_dataframe(bed)
         if not args.no_merge:
-            regions = merge_regions(bed, args.max_region_width)
+            merged_bed = merged_bed.merge()
             merged_bed = BedTool.from_dataframe(bed)
 
     logger.info(merged_bed)
