@@ -37,7 +37,7 @@ class CSReport:
         self.best_row = best_row
         self.cs_dat = cs_dat
 
-def process_cred(cred_file, min_r2, min_bf, max_cs_size):
+def process_cred(cred_file, min_r2):
     REQ_COLUMNS=["trait","region","cs","cs_log10bf","cs_avg_r2","cs_min_r2","cs_size"]
     cred = pd.read_csv(cred_file,compression="gzip", sep="\t")
     if not all([col in cred.columns for col in REQ_COLUMNS]):
