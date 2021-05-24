@@ -145,19 +145,10 @@ def read_sumstats(path,
     sumstats = sumstats.dropna(subset=['beta', 'se', 'p'])
     return sumstats
 
-
-def merge_regions(regions, max_region_width):
-    incl_regs = []
-    incl_regs.append(regions.iloc[0,])
-    addlast=False
-    for i in range(1,regions.shape[0]):
-        row = regions.iloc[i,]
-        last = incl_regs[-1]
-        if last.chrom==row.chrom and last.end >= row.start and row.end - last.start <= max_region_width:
-            last.end = row.end
-        else:
-            incl_regs.append(row)
-    return  pd.DataFrame(incl_regs)
+def filter_sumstat(df, bed):
+    for f in bed:
+        df = df.loc[((df.chromosome == f.chrom) & (df.position >= f.start) & (df.position <= f.end)), :]
+    return df
 
 
 def generate_bed(sumstats,
@@ -171,7 +162,8 @@ def generate_bed(sumstats,
                  MHC_end=34e6,
                  wdl=False,
                  min_p_threshold=None,
-                 max_region_width=np.inf):
+                 max_region_width=np.inf,
+                 window_shrink_ratio=0.9):
     chisq_threshold = sp.stats.norm.ppf(p_threshold / 2) ** 2
     max_chisq_threshold = (sp.stats.norm.ppf(min_p_threshold / 2)**2) if min_p_threshold is not None else None
 
@@ -211,15 +203,41 @@ def generate_bed(sumstats,
         lead_snps.append(lead_snp)
 
     if len(bed_frames) > 0:
-        regions = pd.concat(bed_frames).sort_values(['chrom', 'start'])
-        if not no_merge:
-            print("Merging regions. Before")
-            print(regions)
-            regions = merge_regions(regions, args.max_region_width)
-            print("After:")
-            print(regions)
-        bed = BedTool.from_dataframe(regions)
+        bed = BedTool.from_dataframe(pd.concat(bed_frames).sort_values(['chrom', 'start']))
         lead_snps = pd.concat(lead_snps, axis=1).T
+        if not no_merge:
+            print(len(sumstats[0].index))
+            print("Window size {}".format(window))
+            print("Merging regions. Before")
+            print(bed)
+            bed = bed.merge().saveas()
+            bed_oversized = bed.filter(lambda x: len(x) > max_region_width).saveas()
+            print("Oversized regions")
+            print(bed_oversized)
+            if (len(bed_oversized)) > 0:
+                # keep in-size regions
+                bed1 = bed.filter(lambda x: len(x) <= max_region_width).saveas()
+                
+                # recursion with current window size * window_shrink_ratio
+                bed2, lead_snps2 = generate_bed(
+                    map(lambda x: filter_sumstat(x, bed_oversized), sumstats),
+                    p_threshold=p_threshold,
+                    maf_threshold=maf_threshold,
+                    window=window * window_shrink_ratio,
+                    no_merge=no_merge,
+                    grch38=grch38,
+                    exclude_MHC=exclude_MHC,
+                    MHC_start=MHC_start,
+                    MHC_end=MHC_end,
+                    wdl=wdl,
+                    min_p_threshold=min_p_threshold,
+                    max_region_width=max_region_width,
+                    window_shrink_ratio=window_shrink_ratio)
+
+                bed = bed1.cat(bed2).saveas()
+                lead_snps = pd.concat([lead_snps, lead_snps2], axis=0)
+            print("After:")
+            print(bed)
     else:
         bed = BedTool.from_dataframe(pd.DataFrame(columns=['chrom', 'start', 'end']))
         lead_snps = df
@@ -495,7 +513,8 @@ def main(args):
                                             grch38=args.grch38, exclude_MHC=args.exclude_MHC,
                                             MHC_start=args.MHC_start, MHC_end=args.MHC_end, wdl=args.wdl,
                                             min_p_threshold=args.min_p_threshold,
-                                            max_region_width=args.max_region_width)
+                                            max_region_width=args.max_region_width,
+                                            window_shrink_ratio=args.window_shrink_ratio)
         lead_snps.to_csv(args.out + '.lead_snps.txt', sep='\t', index=False)
     else:
         i = 0
@@ -508,7 +527,7 @@ def main(args):
         bed['chromosome'] = bed.chromosome.map(CHROM_MAPPING_INT)
         merged_bed = BedTool.from_dataframe(bed)
         if not args.no_merge:
-            regions = merge_regions(bed, args.max_region_width)
+            merged_bed = merged_bed.merge()
             merged_bed = BedTool.from_dataframe(bed)
 
     logger.info(merged_bed)
@@ -664,6 +683,10 @@ if __name__ == '__main__':
                         type=int,
                         default=np.inf,
                         help='Maximum width of finemap regions after possible merge')
+    parser.add_argument('--window-shrink-ratio',
+                        type=float,
+                        default=0.9,
+                        help='Ratio to recursively shrink a flanking window size')
     parser.add_argument('--no-merge', action='store_true', help='Do not merge overlapped regions')
     parser.add_argument('--null-region', action='store_true')
     parser.add_argument('--no-upload', action='store_true')
