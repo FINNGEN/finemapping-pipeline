@@ -218,12 +218,9 @@ def generate_bed(sumstats,
                 # keep in-size regions
                 bed1 = bed.filter(lambda x: len(x) <= max_region_width).saveas()
                 
-                # filter to oversized regions
-                sumstats = map(lambda x: filter_sumstat(x, bed_oversized), sumstats)
-
                 # recursion with current window size * window_shrink_ratio
                 bed2, lead_snps2 = generate_bed(
-                    sumstats,
+                    map(lambda x: filter_sumstat(x, bed_oversized), sumstats),
                     p_threshold=p_threshold,
                     maf_threshold=maf_threshold,
                     window=window * window_shrink_ratio,
