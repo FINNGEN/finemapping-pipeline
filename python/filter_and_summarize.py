@@ -57,7 +57,7 @@ def get_variant_annots( regions, annot_file, outcols=["gene_most_severe","most_s
     for r in sorted( regions, key=lambda r: (r.chr,int(r.start)) ):
         regions_file.write('{}\t{}\t{}'.format(r.chr, r.start, r.stop) + "\n")
 
-    header = ["chr","pos","ref","alt","gene_most_severe","most_severe"]
+    header = pd.read_csv(annot_file, sep="\t", nrows=1).columns
     hi = { h:i for i,h in enumerate(header)}
 
     miscols = [ c for c in cpra + outcols if c not in hi ]
