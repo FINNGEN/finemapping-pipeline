@@ -1,7 +1,7 @@
 {
     "finemap.zones": "europe-west1-b europe-west1-c europe-west1-d",
     "finemap.docker": "eu.gcr.io/finngen-refinery-dev/finemap-suite:ed26d2c",
-    "finemap.sumstats_pattern": "gs://r7_data/regenie/summary_stats_raw_release/{PHENO}.gz",
+    "finemap.sumstats_pattern": "gs://finngen-production-library-green/finngen_R7/finngen_R7_analysis_data/summary_stats/release/finngen_R7_{PHENO}.gz",
     "finemap.phenolistfile": "gs://r7_data/finemap/demopheno/conf/extended_demopheno",
     "finemap.phenotypes": "gs://r7_data/pheno/R7_COV_PHENO_V2.txt.gz",
     "finemap.preprocess.cpu": 1,
