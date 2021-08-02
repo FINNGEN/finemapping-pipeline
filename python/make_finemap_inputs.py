@@ -146,9 +146,9 @@ def read_sumstats(path,
     return sumstats
 
 def filter_sumstat(df, bed):
-    for f in bed:
-        df = df.loc[((df.chromosome == f.chrom) & (df.position >= f.start) & (df.position <= f.end)), :]
-    return df
+    return pd.concat(
+        [df.loc[((df.chromosome == f.chrom) & (df.position >= f.start) & (df.position <= f.end)), :] for f in bed]
+    )
 
 
 def generate_bed(sumstats,
