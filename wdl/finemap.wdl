@@ -45,7 +45,6 @@ task preprocess {
             --p-col "${p_col}" \
             --delimiter "${delimiter}" \
             --grch38 \
-            --exclude-MHC \
             --no-upload \
             --prefix ${pheno} \
             --out ${pheno} \
