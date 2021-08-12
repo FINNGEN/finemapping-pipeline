@@ -685,4 +685,22 @@ workflow ldstore_finemap {
             susie_cred_99=combine.out_susie_cred_99, set_variant_id_map_chr=set_variant_id_map_chr
     }
 
+    output{
+        File out_susie_snp_filtered = filter_and_summarize.out_susie_snp_filtered
+        File out_susie_cred_summary = filter_and_summarize.out_susie_cred_summary
+        File out_susie_snp_filtered_99 = filter_and_summarize.out_susie_snp_filtered_99
+        File out_susie_cred_summary_99 = filter_and_summarize.out_susie_cred_summary_99
+        File out_susie_snp_filtered_extend = filter_and_summarize.out_susie_snp_filtered_extend
+        File out_susie_cred_summary_extend = filter_and_summarize.out_susie_cred_summary_extend
+        File out_susie_snp = combine.out_susie_snp
+        File out_susie_snp_tbi = combine.out_susie_snp_tbi
+        File out_susie_cred = combine.out_susie_cred
+        File out_susie_cred_99 = combine.out_susie_cred_99
+        Array[File] out_susie_rds = susie.rds
+        File out_finemap_snp = combine.out_finemap_snp
+        File out_finemap_snp_tbi = combine.out_finemap_snp_tbi
+        File out_finemap_config = combine.out_finemap_config
+        File out_finemap_region = combine.out_finemap_region
+    }
+
 }
