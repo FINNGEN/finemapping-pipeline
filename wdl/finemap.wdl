@@ -116,4 +116,25 @@ workflow finemap {
         }
 
     }
+
+    output {
+        Array[File] bed = preprocess.bed 
+        Array[Boolean] had_results = preprocess.had_results
+        Array[File] out_susie_snp_filtered = select_all(ldstore_finemap.out_susie_snp_filtered)
+        Array[File] out_susie_cred_summary = select_all(ldstore_finemap.out_susie_cred_summary)
+        Array[File] out_susie_snp_filtered_99 = select_all(ldstore_finemap.out_susie_snp_filtered_99)
+        Array[File] out_susie_cred_summary_99 = select_all(ldstore_finemap.out_susie_cred_summary_99)
+        Array[File] out_susie_snp_filtered_extend = select_all(ldstore_finemap.out_susie_snp_filtered_extend)
+        Array[File] out_susie_cred_summary_extend = select_all(ldstore_finemap.out_susie_cred_summary_extend)
+        Array[File] out_susie_snp = select_all(ldstore_finemap.out_susie_snp)
+        Array[File] out_susie_snp_tbi = select_all(ldstore_finemap.out_susie_snp_tbi)
+        Array[File] out_susie_cred = select_all(ldstore_finemap.out_susie_cred)
+        Array[File] out_susie_cred_99 = select_all(ldstore_finemap.out_susie_cred_99)
+
+        Array[Array[File]] out_susie_rds = select_all(ldstore_finemap.out_susie_rds)
+        Array[File] out_finemap_snp = select_all(ldstore_finemap.out_finemap_snp)
+        Array[File] out_finemap_snp_tbi = select_all(ldstore_finemap.out_finemap_snp_tbi)
+        Array[File] out_finemap_config = select_all(ldstore_finemap.out_finemap_config)
+        Array[File] out_finemap_region = select_all(ldstore_finemap.out_finemap_region)
+    }
 }
