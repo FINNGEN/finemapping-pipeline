@@ -697,6 +697,7 @@ workflow ldstore_finemap {
         File out_susie_cred = combine.out_susie_cred
         File out_susie_cred_99 = combine.out_susie_cred_99
         Array[File] out_susie_rds = susie.rds
+        Array[Array[File]] finemap_cred_regions = finemap.cred_files
         File out_finemap_snp = combine.out_finemap_snp
         File out_finemap_snp_tbi = combine.out_finemap_snp_tbi
         File out_finemap_config = combine.out_finemap_config
