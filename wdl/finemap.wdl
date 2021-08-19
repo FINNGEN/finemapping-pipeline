@@ -132,6 +132,7 @@ workflow finemap {
         Array[File] out_susie_cred_99 = select_all(ldstore_finemap.out_susie_cred_99)
 
         Array[Array[File]] out_susie_rds = select_all(ldstore_finemap.out_susie_rds)
+        Array[Array[Array[File]]] out_finemap_cred_regions = select_all(ldstore.finemap_cred_regions)
         Array[File] out_finemap_snp = select_all(ldstore_finemap.out_finemap_snp)
         Array[File] out_finemap_snp_tbi = select_all(ldstore_finemap.out_finemap_snp_tbi)
         Array[File] out_finemap_config = select_all(ldstore_finemap.out_finemap_config)
