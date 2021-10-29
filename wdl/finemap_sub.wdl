@@ -3,8 +3,8 @@ task ldstore {
     String bgen_pattern
     File zfile
     File sample
-    File phenofile
-    String incl = pheno + ".incl"
+    Int n_samples
+    File incl
     String prefix = basename(zfile, ".z")
     String chrom = sub(sub(prefix, pheno + "\\.chr", ""), "\\.[0-9\\-]+$", "")
     String bgenbucket = sub(sub(bgen_pattern, "^gs://", ""), "/.+$", "")
@@ -35,44 +35,11 @@ task ldstore {
             gsutil -q cp ${bgen_gs} $bgen_dir/
         fi
 
-        catcmd="cat"
-        if [[ ${phenofile} == *.gz ]] || [[ ${phenofile} == *.bgz ]]
-        then
-            catcmd="zcat"
-        fi
-        echo "Reading phenotype file with $catcmd"
-
-        $catcmd ${phenofile} | awk -v ph=${pheno} '
-        BEGIN {
-            FS = "\t"
-        }
-        NR == 1 {
-            for (i = 1; i <= NF; i++) {
-                h[$i] = i
-            }
-            exists = (ph in h)
-            if (!exists) {
-                print "Phenotype:"ph" not found in the given phenotype file." > "/dev/stderr"
-                exit 1
-            }
-        }
-        NR > 1 && $h[ph] != "NA" {
-            print $1
-        }
-        ' > ${incl}
-
-        if [[ $? -ne 0 ]]
-        then
-            echo "Given phenotype ${pheno} not found in given phenotype file ${phenofile}"
-            exit 1
-        fi
-
-        wc -l ${incl} | cut -f1 -d' ' > ${n_samples_file}
-        awk -v n_samples=`cat ${n_samples_file}` '
+        awk '
         BEGIN {
             OFS = ";"
             print "z", "bgen", "bgi", "bdose", "bcor", "ld", "sample", "incl", "n_samples"
-            print "${zfile}", "${bgen}", "${bgi}", "${prefix}.bdose", "${prefix}.bcor", "${prefix}.ld", "${sample}", "${incl}", n_samples
+            print "${zfile}", "${bgen}", "${bgi}", "${prefix}.bdose", "${prefix}.bcor", "${prefix}.ld", "${sample}", "${incl}", "${n_samples}"
         }' > ${master}
 
         n_threads=`grep -c ^processor /proc/cpuinfo`
@@ -93,7 +60,6 @@ task ldstore {
 
     output {
 
-        Int n_samples = read_int(n_samples_file)
         File bcor = prefix + ".bcor"
         File ld_bgz = prefix + ".ld.bgz"
 
@@ -114,9 +80,9 @@ task ldstore {
 task finemap {
     Int n_samples
     Int n_causal_snps
+    Float prior_std
     File zfile
     File bcor
-    File phenofile
     String pheno
     String prefix = basename(zfile, ".z")
     String ld = prefix + '.ld'
@@ -128,58 +94,12 @@ task finemap {
 
     command <<<
         #!/usr/bin/env bash
-        awk -v n_samples=${n_samples} '
+        awk '
         BEGIN {
             OFS = ";"
             print "z", "bcor", "snp", "config", "cred", "n_samples", "log"
-            print "${zfile}", "${bcor}", "${prefix}.snp", "${prefix}.config", "${prefix}.cred", n_samples, "${prefix}.log"
+            print "${zfile}", "${bcor}", "${prefix}.snp", "${prefix}.config", "${prefix}.cred", "${n_samples}", "${prefix}.log"
         }' > ${master}
-
-		catcmd="cat"
-		if [[ ${phenofile} == *.gz ]] || [[ ${phenofile} == *.bgz ]]
-		then
-			catcmd="zcat"
-		fi
-
-        prior_std=$($catcmd ${phenofile} | awk -v ph=${pheno} '
-        BEGIN {
-            FS = "\t"
-        }
-        NR == 1 {
-            for (i = 1; i <= NF; i++) {
-                h[$i] = i
-            }
-            exists=ph in h
-            if (!exists) {
-                print "Phenotype:"ph" not found in the given phenotype file." > "/dev/stderr"
-                err = 1
-                exit 1
-            }
-            cases = 0
-            controls = 0
-        }
-        NR > 1 {
-            vals[$(h[ph])] += 1
-            if ($h[ph] != "NA" && $h[ph] != 0 && $h[ph] != 1) {
-                print "Phenotype:"ph" seems a quantitative trait. Setting prior_std = 0.05."> "/dev/stderr"
-                print 0.05
-                err = 1
-                exit 0
-            }
-        }
-        END {
-            if (!err) {
-                phi = vals["1"]/(vals["1"]+vals["0"])
-                std = 0.05 * sqrt(phi*(1-phi))
-                printf std
-            }
-        }')
-
-        if [[ $? -ne 0 ]]
-        then
-            echo "Error occurred while getting prior std from case control counts:" $prior_std
-            exit 1
-        fi
 
         n_threads=`grep -c ^processor /proc/cpuinfo`
         finemap --sss \
@@ -187,7 +107,7 @@ task finemap {
             --log \
             --n-causal-snps ${n_causal_snps} \
             --n-threads $n_threads \
-            --prior-std $prior_std 2> >(tee -a stderr.log >&2)
+            --prior-std ${prior_std} 2> >(tee -a stderr.log >&2)
 
         ## in case of invalid input or other error. finemap does not error out but just prints to
         ## stderr.
@@ -247,9 +167,9 @@ task finemap {
 task susie {
     Int n_samples
     Int n_causal_snps
+    Float var_y
     File zfile
     File ld_bgz
-    File phenofile
     String pheno
     String prefix = basename(zfile, ".z")
     String zones
@@ -261,58 +181,12 @@ task susie {
     command <<<
         #!/usr/bin/env bash
 
-		catcmd="cat"
-		if [[ ${phenofile} == *.gz ]] || [[ ${phenofile} == *.bgz ]]
-		then
-			catcmd="zcat"
-		fi
-
-        var_y=$($catcmd ${phenofile} | awk -v ph=${pheno} '
-        BEGIN {
-            FS = "\t"
-        }
-        NR == 1 {
-            for(i = 1; i <= NF; i++) {
-                h[$i] = i
-            }
-            exists=ph in h
-            if (!exists) {
-                print "Phenotype:"ph" not found in the given phenotype file." > "/dev/stderr"
-                err = 1
-                exit 1
-            }
-            cases = 0
-            controls = 0
-        }
-        NR > 1 {
-            vals[$h[ph]] += 1
-            if ($h[ph] != "NA" && $h[ph] != 0 && $h[ph] != 1) {
-                print "Phenotype:"ph" seems a quantitative trait. Setting var_y = 1." > "/dev/stderr"
-                print 1.0
-                err = 1
-                exit 0
-            }
-        }
-        END {
-            if (!err) {
-                phi = vals["1"] / (vals["1"]+vals["0"])
-                var_y = phi*(1-phi)
-                printf var_y
-            }
-        }')
-
-        if [[ $? -ne 0 ]]
-        then
-            echo "Error occurred while getting var_y from case control counts:" $var_y
-            exit 1
-        fi
-
         run_susieR.R \
             --z ${zfile} \
             --ld ${ld_bgz} \
             -n ${n_samples} \
             --L ${n_causal_snps} \
-            --var-y $var_y \
+            --var-y ${var_y} \
             --snp ${prefix}.susie.snp \
             --cred ${prefix}.susie.cred \
             --log ${prefix}.susie.log \
@@ -649,27 +523,30 @@ workflow ldstore_finemap {
     String zones
     String docker
     String pheno
+    Int n_samples
     Int n_causal_snps
+    Float prior_std
+    Float var_y
+    File incl
     Array[File] zfiles
-    File phenofile
 
     String? set_variant_id_map_chr
 
     scatter (zfile in zfiles) {
 
         call ldstore {
-            input: zones=zones, docker=docker, pheno=pheno, phenofile=phenofile, zfile=zfile
+            input: zones=zones, docker=docker, pheno=pheno, incl=incl, n_samples=n_samples, zfile=zfile
         }
 
         call finemap {
             input: zones=zones, docker=docker, zfile=zfile,
-                bcor=ldstore.bcor, n_samples=ldstore.n_samples,
-                n_causal_snps=n_causal_snps, phenofile=phenofile, pheno=pheno
+                bcor=ldstore.bcor, n_samples=n_samples, n_causal_snps=n_causal_snps,
+                prior_std=prior_std, pheno=pheno
         }
 
         call susie {
-            input: zones=zones, zfile=zfile, ld_bgz=ldstore.ld_bgz, n_samples=ldstore.n_samples, n_causal_snps=n_causal_snps,
-                phenofile=phenofile, pheno=pheno
+            input: zones=zones, zfile=zfile, ld_bgz=ldstore.ld_bgz, n_samples=n_samples, n_causal_snps=n_causal_snps,
+                var_y=var_y, pheno=pheno
         }
     }
 
