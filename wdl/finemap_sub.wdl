@@ -320,6 +320,7 @@ task susie {
             --save-susie-obj \
             --write-alpha \
             --write-single-effect \
+            --write-lbf-variable \
             --min-cs-corr ${min_cs_corr}
 
     >>>
