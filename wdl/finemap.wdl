@@ -57,7 +57,7 @@ task preprocess {
         }
         NR > 1 && $h[ph] != "NA" {
             vals[$h[ph]] += 1
-            print $h["FINNGENID"] > ph".incl"
+            print $1 > ph".incl"
             if ($h[ph] != 0 && $h[ph] != 1) {
                 print "Phenotype:"ph" seems a quantitative trait. Setting var_y = 1 and prior_std = 0.05." > "/dev/stderr"
                 print 1.0 > "var_y.txt"
@@ -71,7 +71,7 @@ task preprocess {
                 phi = vals["1"] / (vals["1"]+vals["0"])
                 var_y = phi * (1-phi)
                 std = 0.05 * sqrt(phi*(1-phi))
-                printf var_y > "var_y.txt"
+                print var_y > "var_y.txt"
                 print std > "prior_std.txt"
             }
         }'
