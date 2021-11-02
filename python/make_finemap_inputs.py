@@ -173,11 +173,6 @@ def generate_bed(sumstats,
 
     build = 'hg19' if not grch38 else 'hg38'
 
-    # exclude significant SNPs in the MHC region
-    MHC_idx = (df.chromosome.map(CHROM_MAPPING_INT) == 6) & (df.position >= MHC_start) & (df.position <= MHC_end)
-    if exclude_MHC and np.sum(MHC_idx) > 0:
-        logger.warning('{} significant SNPs excluded due to --exclude-MHC'.format(np.sum(MHC_idx)))
-        df = df.loc[~MHC_idx, :]
     # exclude by MAF
     if maf_threshold > 0:
         maf_idx = df.maf < maf_threshold
@@ -205,6 +200,16 @@ def generate_bed(sumstats,
     if len(bed_frames) > 0:
         bed = BedTool.from_dataframe(pd.concat(bed_frames).sort_values(['chrom', 'start']))
         lead_snps = pd.concat(lead_snps, axis=1).T
+
+        # exclude regions overlapping with the MHC region
+        if exclude_MHC:
+            MHC_bed = BedTool.from_dataframe(pd.DataFrame([6, int(MHC_start), int(MHC_end)], columns=['chrom', 'start', 'end']))
+            overlapping_regions = bed.intersect(MHC_bed, wa=True)
+            if (len(overlapping_regions) > 0):
+                print(overlapping_regions)
+                logger.warning('{} regions excluded due to --exclude-MHC'.format(len(overlapping_regions)))
+                bed = bed.subtract(MHC_bed, A=True).saveas()
+
         if not no_merge:
             print(len(sumstats[0].index))
             print("Window size {}".format(window))
