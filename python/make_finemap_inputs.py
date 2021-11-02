@@ -203,7 +203,7 @@ def generate_bed(sumstats,
 
         # exclude regions overlapping with the MHC region
         if exclude_MHC:
-            MHC_bed = BedTool.from_dataframe(pd.DataFrame([6, int(MHC_start), int(MHC_end)], columns=['chrom', 'start', 'end']))
+            MHC_bed = BedTool.from_dataframe(pd.DataFrame([[6, int(MHC_start), int(MHC_end)]], columns=['chrom', 'start', 'end']))
             overlapping_regions = bed.intersect(MHC_bed, wa=True)
             if (len(overlapping_regions) > 0):
                 print(overlapping_regions)
