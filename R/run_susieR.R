@@ -229,6 +229,11 @@ main <- function(args) {
     colnames(sd) <- paste0("sd", seq(ncol(sd)))
     variables <- cbind(variables, mean, sd)
   }
+  if (args$write_lbf_variable) {
+    lbf_variable <- t(susie_obj$lbf_variable)
+    colnames(lbf_variable) <- paste0("lbf_variable", seq(ncol(lbf_variable)))
+    variables <- cbind(variables, lbf_variable)
+  }
   if (args$save_susie_obj) {
     saveRDS(susie_obj, file = args$susie_obj)
   }
@@ -259,6 +264,7 @@ parser$add_argument("--n-covariates", "-k", type = "integer")
 parser$add_argument("--prior-weights", type = "character")
 parser$add_argument("--write-alpha", action = "store_true")
 parser$add_argument("--write-single-effect", action = "store_true")
+parser$add_argument("--write-lbf-variable", action = "store_true")
 parser$add_argument("--save-susie-obj", action = "store_true")
 parser$add_argument("--dominant", action = "store_true")
 parser$add_argument("--triangular-ld-matrix", action = "store_true", help = "Use triangular LD matrix")
