@@ -19,7 +19,8 @@ Please run [`finemap.wdl`](wdl/finemap.wdl) on a cromwell server with an appropr
 
 Configurable options include:
 - `finemap.sumstats_pattern`: a path to GWAS summary statistics where `{PHENO}` is a magic keyword to be replaced by an actual phenotype name in `finemap.phenolistfile`
-- `finemap.phenotypes`: a list of phenotypes to fine-map
+- `finemap.phenolistfile`: a list of phenotypes to fine-map
+- `finemap.phenotypes`: a path to phenotype file. **[IMPORTANT]** The first column should contains sample IDs that match to bgen sample IDs. If a phenotype is binary, we expect it's coded as **0/1/NA**, otherwise quantitative phenotype is automatically assumed.
 - `finemap.preprocess.rsid_col`: a column name of rsid / variant id. If `finemap.preprocess.set_variant_id` is `true`, this option is disregarded.
 - `finemap.preprocess.chromosome_col`: a column name of chromosome
 - `finemap.preprocess.position_col`: a column name of position
