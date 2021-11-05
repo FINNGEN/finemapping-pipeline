@@ -102,10 +102,16 @@ task finemap {
         }' > ${master}
 
         n_threads=`grep -c ^processor /proc/cpuinfo`
+
+        #FINEMAP errors if there are less snps than n_causal_snps
+        #therefore give FINEMAP n_causal_snps as min(n_causal_snps, len(snps))
+        zfile_lines=$(wc -l ${zfile}|cut -f 1 -d " ")
+        min_causal_snps=$(( $zfile_lines-1 < ${n_causal_snps} ? $zfile_lines-1 : ${n_causal_snps} ))
+
         finemap --sss \
             --in-files ${master} \
             --log \
-            --n-causal-snps ${n_causal_snps} \
+            --n-causal-snps $min_causal_snps \
             --n-threads $n_threads \
             --prior-std ${prior_std} 2> >(tee -a stderr.log >&2)
 
