@@ -1,0 +1,6 @@
+{
+    "finemap_validation.current": ["R8","gs://misc-analysis/temp/r8_cred_summary_list"],
+    "finemap_validation.previous": ["R7","gs://misc-analysis/temp/r7_cred_summary_list"],
+    "finemap_validation.docker":"eu.gcr.io/finngen-refinery-dev/bioinformatics:0.7",
+    "finemap_validation.zones":"europe-west1-b europe-west1-c europe-west1-d"
+}
