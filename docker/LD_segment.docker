@@ -1,0 +1,6 @@
+FROM eu.gcr.io/finngen-refinery-dev/tomahawk:beta-0.7.1-dirty-fg-v1-ubuntu18
+
+RUN apt update -y && apt install -y python3-pip && pip3 install requests pysam
+
+COPY python/ld_segment.py /usr/local/bin/
+RUN chmod +x /usr/local/bin/ld_segment.py
