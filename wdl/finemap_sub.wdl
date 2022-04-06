@@ -243,7 +243,7 @@ task combine {
     Int mem
 
     command <<<
-
+        set -eux
         cat << "__EOF__" > combine_snp.awk
         BEGIN {
             OFS = "\t"
