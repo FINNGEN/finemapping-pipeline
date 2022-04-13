@@ -147,7 +147,7 @@ def read_sumstats(path,
 
 def filter_sumstat(df, bed):
     return pd.concat(
-        [df.loc[((df.chromosome == f.chrom) & (df.position >= f.start) & (df.position <= f.end)), :] for f in bed]
+        [df.loc[((df.chromosome.map(CHROM_MAPPING_INT).astype(int) == f.chrom) & (df.position >= f.start) & (df.position <= f.end)), :] for f in bed]
     )
 
 
