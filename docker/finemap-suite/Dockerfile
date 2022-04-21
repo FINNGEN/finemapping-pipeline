@@ -52,7 +52,7 @@ RUN wget --quiet http://www.christianbenner.com/finemap_${FINEMAP_VERSION}_x86_6
 ENV HTSLIB_CONFIGURE_OPTIONS "--disable-bz2 --disable-lzma"
 # Add scripts
 RUN pip install --no-cache cython && \
-    pip install --no-cache numpy scipy pandas pybedtools
+    pip install --no-cache numpy scipy pandas pybedtools==0.8.2
 ENV PYTHONPATH /home:${PYTHONPATH}
 COPY python/make_finemap_inputs.py python/filter_and_summarize.py /usr/local/bin/
 COPY python/utils.py /home/
