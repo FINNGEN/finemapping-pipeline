@@ -24,6 +24,7 @@ task preprocess {
     String delimiter
     Int window
     Int max_region_width
+    Int min_region_width
     Float window_shrink_ratio
     # can be helpful if adding finemapping with relaxed threshold after more stringent has already ben run.
     # does not include regions with lead snp < this
@@ -100,6 +101,7 @@ task preprocess {
             --no-upload \
             --prefix ${pheno} \
             --out ${pheno} \
+            --min-region-width ${min_region_width} \
             --window ${window} \
             --max-region-width ${max_region_width} \
             --window-shrink-ratio ${window_shrink_ratio} \
@@ -126,6 +128,7 @@ task preprocess {
         Float prior_std = read_float("prior_std.txt")
         Float var_y = read_float("var_y.txt")
         File incl = pheno + ".incl"
+        File region_status = pheno + ".region_status"
         Array[File] zfiles = glob("*.z")
         File leadsnps = pheno + ".lead_snps.txt"
         File bed = pheno + ".bed"
@@ -175,6 +178,7 @@ workflow finemap {
     output {
         Array[File] bed = preprocess.bed 
         Array[Boolean] had_results = preprocess.had_results
+        Array[File] region_statuses = preprocess.region_status
         Array[File] out_susie_snp_filtered = select_all(ldstore_finemap.out_susie_snp_filtered)
         Array[File] out_susie_cred_summary = select_all(ldstore_finemap.out_susie_cred_summary)
         Array[File] out_susie_snp_filtered_99 = select_all(ldstore_finemap.out_susie_snp_filtered_99)

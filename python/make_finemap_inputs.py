@@ -151,6 +151,86 @@ def filter_sumstat(df, bed):
     )
 
 
+def refine_large_region(
+    sumstats, #List[pd.DataFrame]
+    hard_boundary, #pybedtools.BedTool
+    p_threshold=5e-8,
+    maf_threshold=0,
+    window=0,
+    grch38=False,
+    exclude_MHC=False,
+    MHC_start=25e6,
+    MHC_end=34e6,
+    wdl=False,
+    min_p_threshold=None,
+    max_region_width=np.inf):
+    """
+    Refine a single, large region to either a single or multiple smaller regions.
+    Pseudocode:
+    Given a single region with hard boundaries:
+    - Try to create regions from it with a window size
+    - Cap leftmost and rightmost regions to hard boundary sizes
+    - If it works, great!
+    - If it doesn't work, redo with smaller window size 
+    Arguments:
+    sumstats : summary stats, filtered to bed
+    hard_boundaries: the original bed 
+    p_threshold: p-value threshold
+    window_size: used window size in basepairs
+    min_window_size: minimum window size that is tried. Stop iterating when it is reached, log that that region did not work out.
+    """
+    chisq_threshold = sp.stats.norm.ppf(p_threshold / 2) ** 2
+    max_chisq_threshold = (sp.stats.norm.ppf(min_p_threshold / 2)**2) if min_p_threshold is not None else None
+
+    df = pd.concat(map(lambda x: x[x.chisq > chisq_threshold], sumstats)).sort_values('chisq', ascending=False)
+    #filter to bed region
+    df = filter_sumstat(df,[hard_boundary])
+    if maf_threshold > 0:
+        maf_idx = df.maf < maf_threshold
+        logger.warning('{} significant SNPs excluded due to --maf-threshold'.format(np.sum(maf_idx)))
+        df = df.loc[~maf_idx, :]
+    if not wdl and len(df.index) == 0:
+        raise RuntimeError('No signifcant SNPs found.')
+    start_bound = hard_boundary.start
+    end_bound = hard_boundary.end
+    bed_frames = []
+    lead_snps = []
+    build = 'hg19' if not grch38 else 'hg38'
+    while len(df.index) > 0:
+        lead_snp = df.iloc[0, :]
+        chrom, start, end = lead_snp.chromosome, lead_snp.position - window, lead_snp.position + window
+        chr_start, chr_end = pybedtools.chromsizes(build)['chr' + CHROM_MAPPING_STR[chrom]]
+        start = max([start, chr_start,start_bound])
+        end = min([end, chr_end,end_bound])
+        df = df.loc[~((df.chromosome == chrom) & (df.position >= start) & (df.position <= end)), :]
+
+        # Skip a lead SNP with p < min_p_threshold
+        if max_chisq_threshold is not None and lead_snp.chisq > max_chisq_threshold:
+            continue
+
+        bed_frames.append(
+            pd.DataFrame([[CHROM_MAPPING_INT[chrom], int(start), int(end)]], columns=['chrom', 'start', 'end']))
+        lead_snps.append(lead_snp)
+    if len(bed_frames) > 0:
+        bed = BedTool.from_dataframe(pd.concat(bed_frames).sort_values(['chrom', 'start']))
+
+        # exclude regions overlapping with the MHC region
+        if exclude_MHC:
+            MHC_bed = BedTool.from_dataframe(pd.DataFrame([[6, int(MHC_start), int(MHC_end)]], columns=['chrom', 'start', 'end']))
+            overlapping_regions = bed.intersect(MHC_bed, wa=True)
+            if (len(overlapping_regions) > 0):
+                print(overlapping_regions)
+                logger.warning('{} regions excluded due to --exclude-MHC'.format(len(overlapping_regions)))
+                bed = bed.subtract(MHC_bed, A=True).saveas()
+        #If all of the beds are fine, return them. Otherwise raise ValueError
+        bed = bed.merge().saveas()
+        bed_oversized = bed.filter(lambda x: len(x) > max_region_width).saveas()
+        if len(bed_oversized) > 0:
+            raise ValueError("Oversized regions in region {} with window size {}".format(hard_boundary,window))
+        return bed,lead_snps
+
+    pass
+
 def generate_bed(sumstats,
                  p_threshold=5e-8,
                  maf_threshold=0,
@@ -170,6 +250,7 @@ def generate_bed(sumstats,
     df = pd.concat(map(lambda x: x[x.chisq > chisq_threshold], sumstats)).sort_values('chisq', ascending=False)
     bed_frames = []
     lead_snps = []
+    region_status = []
 
     build = 'hg19' if not grch38 else 'hg38'
 
@@ -216,39 +297,91 @@ def generate_bed(sumstats,
             print("Merging regions. Before")
             print(bed)
             bed = bed.merge().saveas()
+            bed1 = bed.filter(lambda x: len(x) <= max_region_width).saveas()
+            #get region status for each wellformed region
+            for b in bed1:
+                reg = {}
+                reg["region"] = "chr{}.{}-{}".format(str(b["chrom"]),str(b["start"]),str(b["end"]))
+                reg["status"] = "OK"
+                reg["window"] = "{}".format(window)
+                reg["failure"] = ""
+                region_status.append(reg)
             bed_oversized = bed.filter(lambda x: len(x) > max_region_width).saveas()
             print("Oversized regions")
             print(bed_oversized)
-            if (len(bed_oversized)) > 0:
-                # keep in-size regions
-                bed1 = bed.filter(lambda x: len(x) <= max_region_width).saveas()
-                
-                # recursion with current window size * window_shrink_ratio
-                bed2, lead_snps2 = generate_bed(
-                    map(lambda x: filter_sumstat(x, bed_oversized), sumstats),
-                    p_threshold=p_threshold,
-                    maf_threshold=maf_threshold,
-                    window=window * window_shrink_ratio,
-                    no_merge=no_merge,
-                    grch38=grch38,
-                    exclude_MHC=exclude_MHC,
-                    MHC_start=MHC_start,
-                    MHC_end=MHC_end,
-                    wdl=wdl,
-                    min_p_threshold=min_p_threshold,
-                    max_region_width=max_region_width,
-                    window_shrink_ratio=window_shrink_ratio)
+            if len(bed_oversized) == 0:
+                return bed,lead_snps
+            
+            refined_leads = []
+            MIN_WINDOW_SIZE=100000
+            for oversized_region in bed_oversized:
+                failure = ""
+                region_was_successful = False
+                new_window_size = window*window_shrink_ratio
+                while new_window_size > MIN_WINDOW_SIZE:
+                    try:
+                        logger.info("Trying to redo region {} with window size {}".format(oversized_region,new_window_size))
+                        new_beds, new_leads = refine_large_region(sumstats,
+                            oversized_region,
+                            p_threshold,
+                            maf_threshold,
+                            new_window_size,
+                            grch38,
+                            exclude_MHC,
+                            MHC_start,
+                            MHC_end,
+                            wdl,
+                            min_p_threshold,
+                            max_region_width)
+                    except ValueError:
+                        pass
+                    except RuntimeError:
+                        logger.warning("Region {} apparently did not have significant SNPs, even though it was oversized".format(oversized_region))
+                        failure = "No significant variants in oversized region"
+                        break
+                    else:
+                        region_was_successful = True
+                        break
+                    new_window_size = new_window_size*window_shrink_ratio
+                if region_was_successful:
+                    print(new_beds)
+                    for b in new_beds:
+                        reg = {}
+                        reg["region"] = "chr{}.{}-{}".format(str(b["chrom"]),str(b["start"]),str(b["end"]))
+                        reg["status"] = "OK"
+                        reg["window"] = "{}".format(new_window_size)
+                        reg["failure"] = ""
+                        region_status.append(reg)
+                    bed1 = bed1.cat(new_beds).saveas()
+                    refined_leads.extend(new_leads)
+                else:
+                    reg = {}
+                    reg["region"] = "chr{}.{}-{}".format(str(oversized_region["chrom"]),str(oversized_region["start"]),str(oversized_region["end"]))
+                    reg["status"] = "Failure"
+                    reg["window"] = "{}".format(new_window_size)
+                    if new_window_size < MIN_WINDOW_SIZE:
+                        failure = "No regions could be established with allowed window size (window shrank too much)"
+                    reg["failure"] = failure
+                    region_status.append(reg)
+                    logger.warning("Preprocessing region {} failed.".format(oversized_region))
+            new_leads = pd.concat(refined_leads,axis=1).T
+            leads = pd.concat([lead_snps,new_leads])
+            return bed1,leads, region_status
 
-                bed = bed1.cat(bed2).saveas()
-                lead_snps = pd.concat([lead_snps, lead_snps2], axis=0)
-            print("After:")
-            print(bed)
     else:
         bed = BedTool.from_dataframe(pd.DataFrame(columns=['chrom', 'start', 'end']))
         lead_snps = df
 
-    return bed, lead_snps
 
+    return bed, lead_snps, region_status
+
+
+def output_region_status(regions,prefix):
+    with open("{}.region_status".format(prefix),"w") as f:
+        f.write("region\tstatus\twindowsize\tfailure\n")
+        for region in regions:
+            f.write("{}\t{}\t{}\t{}\n".format(region["region"],region["status"],region["window"],region["failure"]))
+        pass
 
 def output_z(df, prefix, boundaries, grch38=False, no_output=True, extra_cols=None):
     i = int(df.name)
@@ -513,7 +646,7 @@ def main(args):
 
     if args.bed is None:
         logger.info('Generating bed')
-        merged_bed, lead_snps = generate_bed(sumstats, p_threshold=args.p_threshold, maf_threshold=args.maf_threshold,
+        merged_bed, lead_snps,region_status = generate_bed(sumstats, p_threshold=args.p_threshold, maf_threshold=args.maf_threshold,
                                             window=args.window, no_merge=args.no_merge,
                                             grch38=args.grch38, exclude_MHC=args.exclude_MHC,
                                             MHC_start=args.MHC_start, MHC_end=args.MHC_end, wdl=args.wdl,
@@ -521,6 +654,7 @@ def main(args):
                                             max_region_width=args.max_region_width,
                                             window_shrink_ratio=args.window_shrink_ratio)
         lead_snps.to_csv(args.out + '.lead_snps.txt', sep='\t', index=False)
+        output_region_status(region_status,args.out)
     else:
         i = 0
         logger.info('Loading user-supplied bed: ' + args.bed[i])
@@ -730,6 +864,7 @@ if __name__ == '__main__':
     parser.add_argument('--extra-cols', type=str, nargs='+', help='Extra columns to output in .z files.')
     parser.add_argument('--recontig', action='store_true', default=False)
     parser.add_argument('--set-variant-id', action='store_true', default=False)
+    parser.add_argument('--min-region-width',type=int,default = 500000,help="Minimum region width. Regions under this width*2 will not be produced.")
     parser.add_argument('--set-variant-id-map-chr', type=str,
                         help="Comma separated list of chromosome id remapping to be done for the generated variant. "
                         "E.g. to map 23 to X and 24 to MT specify 23=X,24=MT."
