@@ -1,6 +1,6 @@
 {
     "finemap.zones": "europe-west1-b europe-west1-c europe-west1-d",
-    "finemap.docker": "eu.gcr.io/finngen-refinery-dev/finemap-suite:fix_55-v2.al",
+    "finemap.docker": "eu.gcr.io/finngen-refinery-dev/finemap-suite:autogwas-8946d00",
     "finemap.sumstats_pattern": "gs://r9-data/finemap/infofilter/summstats/{PHENO}.gz",
     "finemap.phenolistfile": "phenolistfile",
     "finemap.phenotypes": "gs://r9-data/pheno/R9_COV_PHENO_V1.txt.gz",
@@ -21,7 +21,7 @@
     "finemap.preprocess.x_chromosome": true,
     "finemap.preprocess.set_variant_id": true,
     "finemap.preprocess.window": 1500000,
-    "finemap.preprocess.max_region_width": 10000000,
+    "finemap.preprocess.max_region_width": 6000000,
     "finemap.preprocess.min_region_width": 500000,
     "finemap.preprocess.window_shrink_ratio": 0.9,
     "finemap.set_variant_id_map_chr":"23=X",

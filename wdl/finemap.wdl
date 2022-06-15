@@ -3,8 +3,7 @@ import "finemap_sub.wdl" as sub
 task preprocess {
     String pheno
     File phenofile
-    String sumstats_pattern
-    File sumstats = sub(sumstats_pattern,"\\{PHENO\\}",pheno)
+    File sumstats
     String zones
     String docker
     Int cpu
@@ -147,6 +146,63 @@ task preprocess {
     }
 }
 
+task filter {
+
+    File variant_file
+    File sumstat
+    String base = basename(sumstat,".gz")
+
+    command <<<
+
+        python3 - <<EOF > ${base}
+
+        import sys
+        import gzip
+        variant_file="${variant_file}"
+        sumstat="${sumstat}"
+        variants = {}
+        with gzip.open(variant_file, 'rt') as f:
+            for line in f:
+                variants[line.strip().replace('chr', '').replace('X', '23').replace('Y', '24').replace('MT', '25').replace('M', '25')] = True
+        print("${variant_file}",file=sys.stderr)
+        print("${sumstat}",file=sys.stderr)
+        print("${base}",file=sys.stderr)
+        with gzip.open(sumstat, 'rt') as f:
+            l = f.readline().strip()
+            print(l)
+            print(l,file=sys.stderr)
+            for line in f:
+                line = line.strip()
+                s = line.split('\t')
+                chr = s[0].replace('chr', '').replace('X', '23').replace('Y', '24').replace('MT', '25').replace('M', '25')
+                id = chr + ':' + s[1] + ':' + s[2] + ':' + s[3]
+                if id in variants:
+                    print(line)
+        EOF
+        bgzip ${base}
+        tabix -s1 -b2 -e2 ${base}.gz
+
+    >>>
+
+    output {
+        File out = base+".gz"
+        File out_tbi = base + ".gz.tbi"
+    }
+
+    runtime {
+
+        docker: "eu.gcr.io/finngen-refinery-dev/bioinformatics:0.7"
+        cpu: 1
+        # 40M variants in variant_file to look up takes about 4G
+        memory: "6 GB"
+        disks: "local-disk 100 HDD"
+        zones: "europe-west1-b europe-west1-c europe-west1-d"
+        preemptible: 0
+        noAddress: true
+    }
+}
+
+
 workflow finemap {
 
     String zones
@@ -160,9 +216,15 @@ workflow finemap {
 
     scatter (pheno in phenos) {
 
+        String sumstats_pattern
+        String sumstats = sub(sumstats_pattern,"\\{PHENO\\}",pheno)
+        call filter{
+            input: sumstat = sumstats
+        }
+
         call preprocess {
             input: zones=zones, docker=docker, pheno=pheno, phenofile=phenotypes,
-                sumstats_pattern=sumstats_pattern,set_variant_id_map_chr=set_variant_id_map_chr
+                sumstats=filter.out,set_variant_id_map_chr=set_variant_id_map_chr
         }
 
         if(preprocess.had_results) {

@@ -69,7 +69,7 @@ task ldstore {
 
         docker: "${docker}"
         cpu: "${cpu}"
-        memory: "256 GB"
+        memory: "${mem} GB"
         disks: "local-disk 200 HDD"
         zones: "${zones}"
         preemptible: 2
@@ -218,7 +218,7 @@ task susie {
 
         docker: "${docker}"
         cpu: "${cpu}"
-        memory: "365 GB"
+        memory: "${mem} GB"
         disks: "local-disk 100 HDD"
         zones: "${zones}"
         preemptible: 2
