@@ -232,6 +232,7 @@ def refine_large_region(
     pass
 
 def generate_bed(sumstats,
+                 minimum_region_width,
                  p_threshold=5e-8,
                  maf_threshold=0,
                  window=0,
@@ -313,12 +314,12 @@ def generate_bed(sumstats,
                 return bed,lead_snps
             
             refined_leads = []
-            MIN_WINDOW_SIZE=100000
+            
             for oversized_region in bed_oversized:
                 failure = ""
                 region_was_successful = False
                 new_window_size = window*window_shrink_ratio
-                while new_window_size > MIN_WINDOW_SIZE:
+                while new_window_size > minimum_region_width:
                     try:
                         logger.info("Trying to redo region {} with window size {}".format(oversized_region,new_window_size))
                         new_beds, new_leads = refine_large_region(sumstats,
@@ -359,8 +360,8 @@ def generate_bed(sumstats,
                     reg["region"] = "chr{}.{}-{}".format(str(oversized_region["chrom"]),str(oversized_region["start"]),str(oversized_region["end"]))
                     reg["status"] = "Failure"
                     reg["window"] = "{}".format(new_window_size)
-                    if new_window_size < MIN_WINDOW_SIZE:
-                        failure = "No regions could be established with allowed window size (window shrank too much)"
+                    if new_window_size < minimum_region_width:
+                        failure = "No regions could be established. Window shrank too much".format(minimum_region_width)
                     reg["failure"] = failure
                     region_status.append(reg)
                     logger.warning("Preprocessing region {} failed.".format(oversized_region))
@@ -651,7 +652,7 @@ def main(args):
                                             grch38=args.grch38, exclude_MHC=args.exclude_MHC,
                                             MHC_start=args.MHC_start, MHC_end=args.MHC_end, wdl=args.wdl,
                                             min_p_threshold=args.min_p_threshold,
-                                            max_region_width=args.max_region_width,
+                                            max_region_width=args.max_region_width,minimum_region_width=args.min_region_width,
                                             window_shrink_ratio=args.window_shrink_ratio)
         lead_snps.to_csv(args.out + '.lead_snps.txt', sep='\t', index=False)
         output_region_status(region_status,args.out)
