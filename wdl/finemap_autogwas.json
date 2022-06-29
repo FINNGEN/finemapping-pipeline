@@ -1,8 +1,8 @@
 {
     "finemap.zones": "europe-west1-b europe-west1-c europe-west1-d",
     "finemap.docker": "eu.gcr.io/finngen-refinery-dev/finemap-suite:autogwas-8946d00",
-    "finemap.sumstats_pattern": "gs://r9-data/finemap/infofilter/summstats/{PHENO}.gz",
-    "finemap.phenolistfile": "phenolistfile",
+    "finemap.sumstats_pattern": "{pheno_path_placeholder}{PHENO}.gz",
+    "finemap.phenolistfile": "{phenolist_placeholder}",
     "finemap.phenotypes": "gs://r9-data/pheno/R9_COV_PHENO_V1.txt.gz",
     "finemap.filter.variant_file": "TODO",
     "finemap.preprocess.cpu": 1,

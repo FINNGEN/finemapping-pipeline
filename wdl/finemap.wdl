@@ -216,7 +216,6 @@ workflow finemap {
 
     scatter (pheno in phenos) {
 
-        String sumstats_pattern
         String sumstats = sub(sumstats_pattern,"\\{PHENO\\}",pheno)
         call filter{
             input: sumstat = sumstats
