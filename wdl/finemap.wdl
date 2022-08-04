@@ -194,10 +194,10 @@ task filter {
         docker: "eu.gcr.io/finngen-refinery-dev/bioinformatics:0.7"
         cpu: 1
         # 40M variants in variant_file to look up takes about 4G
-        memory: "6 GB"
+        memory: "4 GB"
         disks: "local-disk 100 HDD"
         zones: "europe-west1-b europe-west1-c europe-west1-d"
-        preemptible: 0
+        preemptible: 2
         noAddress: true
     }
 }
