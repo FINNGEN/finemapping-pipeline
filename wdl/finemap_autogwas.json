@@ -4,7 +4,7 @@
     "finemap.sumstats_pattern": "{pheno_path_placeholder}{PHENO}.gz",
     "finemap.phenolistfile": "{phenolist_placeholder}",
     "finemap.phenotypes": "{phenodata_placeholder}",
-    "finemap.filter.variant_file": "TODO",
+    "finemap.filter.variant_file": "{infofilter_variant_placeholder}",
     "finemap.preprocess.cpu": 1,
     "finemap.preprocess.mem": 100,
     "finemap.preprocess.rsid_col": "",
