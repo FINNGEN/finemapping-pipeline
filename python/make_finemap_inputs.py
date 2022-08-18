@@ -311,7 +311,7 @@ def generate_bed(sumstats,
             print("Oversized regions")
             print(bed_oversized)
             if len(bed_oversized) == 0:
-                return bed,lead_snps
+                return bed,lead_snps,region_status
             
             refined_leads = []
             
