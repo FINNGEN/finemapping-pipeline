@@ -1,6 +1,6 @@
 {
     "finemap.zones": "europe-west1-b europe-west1-c europe-west1-d",
-    "finemap.docker": "eu.gcr.io/finngen-refinery-dev/finemap-suite:autogwas-8946d00",
+    "finemap.docker": "eu.gcr.io/finngen-refinery-dev/finemap-suite:autogwas-9dc9b9c",
     "finemap.sumstats_pattern": "{pheno_path_placeholder}{PHENO}.gz",
     "finemap.phenolistfile": "{phenolist_placeholder}",
     "finemap.phenotypes": "{phenodata_placeholder}",
