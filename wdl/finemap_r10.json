@@ -27,7 +27,7 @@
     "finemap.ldstore_finemap.ldstore.sample": "gs://r10-data/bgen/chrom/finngen_R10_1.bgen.sample",
     "finemap.ldstore_finemap.ldstore.bgen_pattern": "gs://r10-data/bgen/chrom/finngen_R10_{CHR}.bgen",
     "finemap.ldstore_finemap.ldstore.cpu": 16,
-    "finemap.ldstore_finemap.ldstore.mem": 150,
+    "finemap.ldstore_finemap.ldstore.mem": 96,
     "finemap.ldstore_finemap.ldstore.enable_fuse": false,
     "finemap.ldstore_finemap.n_causal_snps": 10,
     "finemap.ldstore_finemap.finemap.cpu": 8,
