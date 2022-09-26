@@ -365,8 +365,12 @@ def generate_bed(sumstats,
                     reg["failure"] = failure
                     region_status.append(reg)
                     logger.warning("Preprocessing region {} failed.".format(oversized_region))
-            new_leads = pd.concat(refined_leads,axis=1).T
-            leads = pd.concat([lead_snps,new_leads])
+            # pd.concat raises exception if it tries to concatenate empty list
+            if refined_leads:
+                new_leads = pd.concat(refined_leads,axis=1).T
+                leads = pd.concat([lead_snps,new_leads])
+            else:
+                leads = lead_snps
             return bed1,leads, region_status
 
     else:
