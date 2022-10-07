@@ -122,7 +122,7 @@ task preprocess {
             echo "False" > ${pheno}"_too_many_regions"
         fi
         #check that there are less than MAX_REGIONS regions. If there are too many, stop right there.
-        if [ "${res}" == "True" ]; then
+        if [ "$res" == "True" ]; then
             regions=`cat ${pheno}".bed"|wc -l`
             if [ $regions -ge ${maximum_region_amount} ]; then
                 echo "True" > ${pheno}"_too_many_regions"
