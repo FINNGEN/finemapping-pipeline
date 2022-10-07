@@ -24,6 +24,7 @@ task preprocess {
     Int window
     Int max_region_width
     Int min_region_width
+    Int maximum_region_amount
     Float window_shrink_ratio
     # can be helpful if adding finemapping with relaxed threshold after more stringent has already ben run.
     # does not include regions with lead snp < this
@@ -112,13 +113,23 @@ task preprocess {
             ${true='--min-p-threshold ' false='' defined(minimum_pval)}${minimum_pval} \
             --wdl
 
-            res=`cat ${pheno}_had_results`
+        res=`cat ${pheno}_had_results`
 
-            if [ "$res" == "False" ]; then
-                touch ${pheno}".z"
-                touch ${pheno}".lead_snps.txt"
-                touch ${pheno}".bed"
+        if [ "$res" == "False" ]; then
+            touch ${pheno}".z"
+            touch ${pheno}".lead_snps.txt"
+            touch ${pheno}".bed"
+            echo "False" > ${pheno}"_too_many_regions"
+        fi
+        #check that there are less than MAX_REGIONS regions. If there are too many, stop right there.
+        if [ "${res}" == "True" ]; then
+            regions=`cat ${pheno}".bed"|wc -l`
+            if [ $regions -ge ${maximum_region_amount} ]; then
+                echo "True" > ${pheno}"_too_many_regions"
+            else
+                echo "False" > ${pheno}"_too_many_regions"
             fi
+        fi 
     >>>
 
     output {
@@ -133,6 +144,7 @@ task preprocess {
         File bed = pheno + ".bed"
         File log = pheno + ".log"
         Boolean had_results = read_boolean("${pheno}_had_results")
+        Boolean too_many_regions = read_boolean("${pheno}_too_many_regions")
     }
 
     runtime {
@@ -226,7 +238,7 @@ workflow finemap {
                 sumstats=filter.out,set_variant_id_map_chr=set_variant_id_map_chr
         }
 
-        if(preprocess.had_results) {
+        if(preprocess.had_results && (!preprocess.too_many_regions)) {
             call sub.ldstore_finemap {
                 input: zones=zones, docker=docker, pheno=pheno,
                     n_samples=preprocess.n_samples, prior_std=preprocess.prior_std, var_y=preprocess.var_y,
@@ -240,6 +252,7 @@ workflow finemap {
         Array[File] bed = preprocess.bed 
         Array[Boolean] had_results = preprocess.had_results
         Array[File] region_statuses = preprocess.region_status
+        Array[Boolean] too_many_regions = preprocess.too_many_regions
         Array[File] out_susie_snp_filtered = select_all(ldstore_finemap.out_susie_snp_filtered)
         Array[File] out_susie_cred_summary = select_all(ldstore_finemap.out_susie_cred_summary)
         Array[File] out_susie_snp_filtered_99 = select_all(ldstore_finemap.out_susie_snp_filtered_99)

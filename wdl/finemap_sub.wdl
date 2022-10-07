@@ -171,6 +171,8 @@ task finemap {
 
 
 task susie {
+    #constants
+    
     Int n_samples
     Int n_causal_snps
     Float var_y
@@ -181,7 +183,14 @@ task susie {
     String zones
     String docker
     Int cpu=8
-    Int mem=256
+    Int snps = length(read_lines(zfile))
+    Array[Float] memory_values# =  [30,70,120,220,360]
+    Array[Float] snp_thresholds# = [15000,30000,40000,60000]
+    Int mem= if snps < snp_thresholds[0] then floor(memory_values[0]) else
+        if snps < snp_thresholds[1] then ceil( (memory_values[0] +  ((snps - snp_thresholds[0] )/(snp_thresholds[1]-snp_thresholds[0] )) * (memory_values[1]-memory_values[0])) ) else
+        if snps < snp_thresholds[2] then ceil( (memory_values[1] +  ((snps - snp_thresholds[1] )/(snp_thresholds[2] -snp_thresholds[1])) * (memory_values[2]-memory_values[1])) ) else 
+        if snps < snp_thresholds[3] then floor( (memory_values[2] +  ((snps - snp_thresholds[2] )/(snp_thresholds[3]-snp_thresholds[2]) ) * (memory_values[3]-memory_values[2])) ) else 
+        floor(memory_values[4])
     Float min_cs_corr
 
     command <<<
