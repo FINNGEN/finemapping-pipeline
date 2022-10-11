@@ -17,7 +17,7 @@ task ldstore {
     String zones
     String docker
     Float snps = length(read_lines(zfile))
-    Pair[Float,Float] mem_coefficients
+    Array[Float] mem_coefficients
     Int mem_ = floor(mem_coefficients[0]) + ceil(mem_coefficients[1]*snps)
     #limit to 200
     Int mem = if mem_ < 200 then mem_ else 200

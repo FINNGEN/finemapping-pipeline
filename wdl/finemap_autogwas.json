@@ -34,7 +34,7 @@
     "finemap.ldstore_finemap.ldstore.enable_fuse": false,
     "finemap.ldstore_finemap.n_causal_snps": 10,
     "finemap.ldstore_finemap.finemap.cpu": 8,
-    "finemap.ldstore_finemap.finemap.mem_coefficients": [10.0,0.0033],
+    "finemap.ldstore_finemap.ldstore.mem_coefficients": [10.0,0.0033],
     "finemap.ldstore_finemap.susie.min_cs_corr": 0,
     "finemap.ldstore_finemap.susie.docker": "eu.gcr.io/finngen-refinery-dev/susie:0.11.92.2360607",
     "finemap.ldstore_finemap.susie.cpu": 8,
