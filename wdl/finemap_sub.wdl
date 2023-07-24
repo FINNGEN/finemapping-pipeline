@@ -16,8 +16,12 @@ task ldstore {
     String n_samples_file = prefix + ".n_samples.txt"
     String zones
     String docker
+    Float snps = length(read_lines(zfile))
+    Array[Float] mem_coefficients
+    Int mem_ = floor(mem_coefficients[0]) + ceil(mem_coefficients[1]*snps)
+    #limit to 300
+    Int mem = mem_
     Int cpu
-    Int mem
     Boolean enable_fuse
 
     command <<<
@@ -69,7 +73,7 @@ task ldstore {
 
         docker: "${docker}"
         cpu: "${cpu}"
-        memory: "256 GB"
+        memory: "${mem} GB"
         disks: "local-disk 200 HDD"
         zones: "${zones}"
         preemptible: 2
@@ -171,6 +175,8 @@ task finemap {
 
 
 task susie {
+    #constants
+    
     Int n_samples
     Int n_causal_snps
     Float var_y
@@ -181,7 +187,14 @@ task susie {
     String zones
     String docker
     Int cpu=8
-    Int mem=256
+    Int snps = length(read_lines(zfile))
+    Array[Float] memory_values# =  [30,70,120,220,360]
+    Array[Float] snp_thresholds# = [15000,30000,40000,60000]
+    Int mem= if snps < snp_thresholds[0] then floor(memory_values[0]) else
+        if snps < snp_thresholds[1] then ceil( (memory_values[0] +  ((snps - snp_thresholds[0] )/(snp_thresholds[1]-snp_thresholds[0] )) * (memory_values[1]-memory_values[0])) ) else
+        if snps < snp_thresholds[2] then ceil( (memory_values[1] +  ((snps - snp_thresholds[1] )/(snp_thresholds[2] -snp_thresholds[1])) * (memory_values[2]-memory_values[1])) ) else 
+        if snps < snp_thresholds[3] then floor( (memory_values[2] +  ((snps - snp_thresholds[2] )/(snp_thresholds[3]-snp_thresholds[2]) ) * (memory_values[3]-memory_values[2])) ) else 
+        floor(memory_values[4])
     Float min_cs_corr
 
     command <<<
@@ -218,7 +231,7 @@ task susie {
 
         docker: "${docker}"
         cpu: "${cpu}"
-        memory: "365 GB"
+        memory: "${mem} GB"
         disks: "local-disk 100 HDD"
         zones: "${zones}"
         preemptible: 2
@@ -518,7 +531,7 @@ task filter_and_summarize{
         docker: "${docker}"
         cpu: "${cpu}"
         memory: "${mem} GB"
-        disks: "local-disk 30 HDD"
+        disks: "local-disk 60 HDD"
         zones: "${zones}"
         preemptible: 2
         noAddress: true
