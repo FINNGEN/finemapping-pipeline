@@ -25,11 +25,16 @@ task preprocess {
     Int window
     Int max_region_width
     Float window_shrink_ratio
+    
     # can be helpful if adding finemapping with relaxed threshold after more stringent has already ben run.
     # does not include regions with lead snp < this
     Float p_threshold
     Float? minimum_pval
     String? set_variant_id_map_chr
+
+    File? pre_bed 
+
+
 
     command <<<
 
@@ -109,9 +114,15 @@ task preprocess {
             ${true='--set-variant-id-map-chr ' false=' ' defined(set_variant_id_map_chr)}${set_variant_id_map_chr} \
             --p-threshold ${p_threshold} \
             ${true='--min-p-threshold ' false='' defined(minimum_pval)}${minimum_pval} \
+            ${true='--bed ' false='' defined(pre_bed)}${pre_bed} \
             --wdl
 
             res=`cat ${pheno}_had_results`
+
+            if [ "${defined(pre_bed)}" == "true" ]; then
+                cp ${pre_bed} ${pheno}".bed"
+                touch ${pheno}".lead_snps.txt"
+            fi
 
             if [ "$res" == "False" ]; then
                 touch ${pheno}".z"
@@ -153,21 +164,29 @@ workflow finemap {
     File phenotypes
 
     Array[String] phenos = read_lines(phenolistfile)
+
+    File? bed_regions_file 
+
+
     String? set_variant_id_map_chr
 
-    scatter (pheno in phenos) {
+    Array[String] beds = if defined(bed_regions_file) then read_lines(bed_regions_file  ) else []
 
+
+    scatter (idx in range(length(phenos))) {
+        String? bed = if defined(bed_regions_file) then beds[idx] else bed_regions_file
+    
         call preprocess {
-            input: zones=zones, docker=docker, pheno=pheno, phenofile=phenotypes,
-                sumstats_pattern=sumstats_pattern,set_variant_id_map_chr=set_variant_id_map_chr
+            input: zones=zones, docker=docker, pheno=phenos[idx], phenofile=phenotypes,
+                sumstats_pattern=sumstats_pattern,set_variant_id_map_chr=set_variant_id_map_chr, pre_bed= bed 
         }
+    
 
         if(preprocess.had_results) {
             call sub.ldstore_finemap {
-                input: zones=zones, docker=docker, pheno=pheno,
+                input: zones=zones, docker=docker, pheno=phenos[idx],
                     n_samples=preprocess.n_samples, prior_std=preprocess.prior_std, var_y=preprocess.var_y,
-                    incl=preprocess.incl, zfiles=preprocess.zfiles,
-                    pheno=pheno, set_variant_id_map_chr=set_variant_id_map_chr
+                    incl=preprocess.incl, zfiles=preprocess.zfiles, set_variant_id_map_chr=set_variant_id_map_chr
             }
         }
     }
