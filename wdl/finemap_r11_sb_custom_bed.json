@@ -26,7 +26,7 @@
     "finemap.set_variant_id_map_chr":"23=X",
     "finemap.preprocess.p_threshold": 0.00000005,
     "finemap.ldstore_finemap.ldstore.sample": "LIBRARY_RED/finngen_R11/bgen/data/chrom/finngen_R11_1.bgen.sample",
-    "finemap.ldstore_finemap.ldstore.bgen_pattern": "LIBRARY_RED/finngen_R11/bgen/data/chrom/finngen_R11_${CHR}.bgen",
+    "finemap.ldstore_finemap.ldstore.bgen_pattern": "LIBRARY_RED/finngen_R11/bgen/data/chrom/finngen_R11_{CHR}.bgen",
     "finemap.ldstore_finemap.ldstore.cpu": 16,
     "finemap.ldstore_finemap.ldstore.mem": 96,
     "finemap.ldstore_finemap.ldstore.enable_fuse": false,
@@ -41,7 +41,7 @@
     "finemap.ldstore_finemap.combine.mem": 7,
     "finemap.ldstore_finemap.filter_and_summarize.good_cred_r2": 0.25,
     "finemap.ldstore_finemap.filter_and_summarize.snp_annot_file":"LIBRARY_GREEN/finngen_R11/finngen_R11_analysis_data/annotations/R11_annotated_variants_v1.small.gz",
-    "finemap.ldstore_finemap.filter_and_summarize.snp_annot_file_tbi":"LIBRARY_GREEN/finngen_R11/finngen_R11_analysis_data/annotations/RR11_annotated_variants_v1.small.gz.tbi",
+    "finemap.ldstore_finemap.filter_and_summarize.snp_annot_file_tbi":"LIBRARY_GREEN/finngen_R11/finngen_R11_analysis_data/annotations/R11_annotated_variants_v1.small.gz.tbi",
     "finemap.ldstore_finemap.filter_and_summarize.snp_annotation_fields":"most_severe,gene_most_severe",
     "finemap.ldstore_finemap.filter_and_summarize.cpu":1,
     "finemap.ldstore_finemap.filter_and_summarize.mem":24

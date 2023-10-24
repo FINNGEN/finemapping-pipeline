@@ -120,7 +120,6 @@ task preprocess {
             res=`cat ${pheno}_had_results`
 
             if [ "${defined(pre_bed)}" == "true" ]; then
-                cp ${pre_bed} ${pheno}".bed"
                 touch ${pheno}".lead_snps.txt"
             fi
 

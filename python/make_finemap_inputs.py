@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 import argparse
 import os
 import os.path
@@ -580,8 +580,7 @@ def main(args):
         else:
             merged_bed = all_bed
 
-    if args.bed is None:
-        merged_bed.to_csv(args.out + '.bed', sep='\t', index=False, header=False)
+    merged_bed.to_csv(args.out + '.bed', sep='\t', index=False, header=False)
 
     for i, x in enumerate(sumstats):
         if args.extract is not None:

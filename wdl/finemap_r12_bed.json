@@ -1,6 +1,6 @@
 {
     "finemap.zones": "europe-west1-b europe-west1-c europe-west1-d",
-    "finemap.docker": "eu.gcr.io/finngen-refinery-dev/finemap-suite:fix_55-v2.al",
+    "finemap.docker": "eu.gcr.io/finngen-refinery-dev/finemap-suite:1815ac1d0401",
     "finemap.sumstats_pattern": "gs://r12-data/regenie/release/summary_stats/{PHENO}.gz",
     "finemap.phenolistfile": "gs://r12-data/mitja/finemap_test/pheno",
     "finemap.phenotypes": "gs://finngen-production-library-red/finngen_R12/analysis_covariates/R12_COV_PHENO_V2.FID.txt.gz",
@@ -28,7 +28,7 @@
     "finemap.ldstore_finemap.ldstore.bgen_pattern": "gs://finngen-production-library-red/finngen_R12/bgen_2.0/data/chrom/finngen_R12_{CHR}.bgen",
     "finemap.ldstore_finemap.ldstore.cpu": 16,
     "finemap.ldstore_finemap.ldstore.mem": 96,
-    "finemap.ldstore_finemap.ldstore.enable_fuse": false,
+    "finemap.ldstore_finemap.ldstore.enable_fuse": true,
     "finemap.ldstore_finemap.n_causal_snps": 10,
     "finemap.ldstore_finemap.finemap.cpu": 8,
     "finemap.ldstore_finemap.finemap.mem": 52,

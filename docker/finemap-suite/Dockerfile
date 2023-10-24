@@ -6,10 +6,10 @@ ENV LANG=C.UTF-8 LC_ALL=C.UTF-8
 
 # Install gcsfuse
 RUN export GCSFUSE_REPO=gcsfuse-`lsb_release -c -s` && \
-    echo "deb http://packages.cloud.google.com/apt $GCSFUSE_REPO main" | tee /etc/apt/sources.list.d/gcsfuse.list && \
-    curl https://packages.cloud.google.com/apt/doc/apt-key.gpg | apt-key add - && \
+    echo "deb https://packages.cloud.google.com/apt $GCSFUSE_REPO main" | tee /etc/apt/sources.list.d/gcsfuse.list && \
+   curl https://packages.cloud.google.com/apt/doc/apt-key.gpg | apt-key add - && \
     apt-get update --fix-missing && \
-    apt-get install -y wget gawk make zlib1g-dev g++ libopenblas-dev gfortran bedtools python-pip gcsfuse && \
+    apt-get install -y wget gawk make zlib1g-dev g++ libopenblas-dev gfortran bedtools python3-pip gcsfuse && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
 
