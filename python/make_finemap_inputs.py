@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 import argparse
 import os
 import os.path
@@ -8,10 +8,9 @@ import scipy as sp
 from scipy import stats
 import pandas as pd
 import pybedtools
-from collections import OrderedDict, defaultdict
+from collections import defaultdict
 from logging import getLogger, StreamHandler, FileHandler, Formatter, DEBUG
 from pybedtools import BedTool
-from utils import run_command, run_command_bg, make_executable
 
 # logger
 logger = getLogger(__name__)
@@ -92,7 +91,7 @@ def read_sumstats(path,
     if grch38:
         sumstats['chromosome'] = sumstats.chromosome.str.replace('^chr', '')
     # remove non-compatible chromosomes
-    sumstats = sumstats.loc[sumstats.chromosome.isin(CHROM_MAPPING_STR.keys()), :]
+    sumstats = sumstats.loc[sumstats.chromosome.isin(list(CHROM_MAPPING_STR.keys())), :]
     # convert to chrpos: 1e11 * chr + pos
     chromosome_int = sumstats.chromosome.map(CHROM_MAPPING_INT).astype(int)
     sumstats['chrpos'] = convert_chrpos(chromosome_int, sumstats.position)
@@ -167,7 +166,7 @@ def generate_bed(sumstats,
     chisq_threshold = sp.stats.norm.ppf(p_threshold / 2) ** 2
     max_chisq_threshold = (sp.stats.norm.ppf(min_p_threshold / 2)**2) if min_p_threshold is not None else None
 
-    df = pd.concat(map(lambda x: x[x.chisq > chisq_threshold], sumstats)).sort_values('chisq', ascending=False)
+    df = pd.concat([x[x.chisq > chisq_threshold] for x in sumstats]).sort_values('chisq', ascending=False)
     bed_frames = []
     lead_snps = []
 
@@ -211,8 +210,8 @@ def generate_bed(sumstats,
                 bed = bed.subtract(MHC_bed, A=True).saveas()
 
         if not no_merge:
-            print(len(sumstats[0].index))
-            print("Window size {}".format(window))
+            print((len(sumstats[0].index)))
+            print(f"Window size {window}")
             print("Merging regions. Before")
             print(bed)
             bed = bed.merge().saveas()
@@ -225,7 +224,7 @@ def generate_bed(sumstats,
                 
                 # recursion with current window size * window_shrink_ratio
                 bed2, lead_snps2 = generate_bed(
-                    map(lambda x: filter_sumstat(x, bed_oversized), sumstats),
+                    [filter_sumstat(x, bed_oversized) for x in sumstats],
                     p_threshold=p_threshold,
                     maf_threshold=maf_threshold,
                     window=window * window_shrink_ratio,
@@ -267,209 +266,6 @@ def output_z(df, prefix, boundaries, grch38=False, no_output=True, extra_cols=No
     return outname
 
 
-def output_tasks(args,
-                 input_z,
-                 region_size,
-                 prefix,
-                 gsdir,
-                 localdir,
-                 input_samples,
-                 input_incl_samples,
-                 n_samples,
-                 var_y=None,
-                 load_yty=False,
-                 yty=None,
-                 phi=None):
-
-    if args.max_region_size < np.inf:
-        print(region_size)
-        idx = region_size < args.max_region_size
-        input_z = input_z.loc[idx]
-        logger.warning('{} regions excluded due to region_size <= {}'.format(np.sum(~idx), args.max_region_size))
-
-    n_tasks = len(input_z)
-    gsdir = pd.Series([gsdir] * n_tasks)
-    localdir = pd.Series([localdir] * n_tasks)
-
-    # ldstore
-    input_base = input_z.str.slice(stop=-2)
-    input_ld = input_base.str.cat(['.ld.bgz'] * n_tasks)
-    out_bcor = input_base.str.cat(['.bcor'] * n_tasks)
-
-    # finemap
-    input_samples = [input_samples] * n_tasks
-    input_incl_samples = [input_incl_samples] * n_tasks
-    out_snp = input_base.str.cat(['.snp'] * n_tasks)
-    out_config = input_base.str.cat(['.config'] * n_tasks)
-    out_cred = input_base.str.cat(['.cred'] * n_tasks)
-    out_log = input_base.str.cat(['.log_sss'] * n_tasks)
-    n_samples = [n_samples] * n_tasks
-    phi = [phi] * n_tasks
-
-    # susie
-    if load_yty:
-        # gsdir should be added here to distinguish from *None*.
-        input_yty = gsdir.str.cat(input_base.str.cat(['.yty'] * n_tasks).values)
-    else:
-        input_yty = [None] * n_tasks
-    out_susie_snp = input_base.str.cat(['.susie.snp'] * n_tasks)
-    out_susie_cred = input_base.str.cat(['.susie.cred'] * n_tasks)
-    out_susie_log = input_base.str.cat(['.susie.log'] * n_tasks)
-    out_susie_rds = input_base.str.cat(['.susie.rds'] * n_tasks)
-    var_y = [var_y] * n_tasks
-    yty = [yty] * n_tasks
-    if args.dominant:
-        dominant = [True] * n_tasks
-    else:
-        dominant = [None] * n_tasks
-
-    ldstore_tasks = pd.DataFrame(
-        OrderedDict((
-            ('--input INPUT_Z', localdir.str.cat(input_z.values)),
-            ('--input INPUT_SAMPLES', input_samples),
-            ('--input INPUT_INCL_SAMPLES', input_incl_samples),
-            ('--output OUT_BCOR', localdir.str.cat(out_bcor.values)),
-            ('--output OUT_LD', localdir.str.cat(input_ld.values))
-        )))
-    finemap_tasks = pd.DataFrame(
-        OrderedDict((
-            ('--input INPUT_Z', gsdir.str.cat(input_z.values)),
-            ('--input INPUT_LD', gsdir.str.cat(input_ld.values)),
-            ('--output OUT_SNP', gsdir.str.cat(out_snp.values)),
-            ('--output OUT_CONFIG', gsdir.str.cat(out_config.values)),
-            ('--output OUT_CRED', gsdir.str.cat(out_cred.values)),
-            ('--output OUT_LOG', gsdir.str.cat(out_log.values)),
-            ('--env N_SAMPLES', n_samples),
-            ('--env PHI', phi)
-        )))
-    susie_tasks = pd.DataFrame(
-        OrderedDict((
-            ('--input INPUT_Z', gsdir.str.cat(input_z.values)),
-            ('--input INPUT_LD', gsdir.str.cat(input_ld.values)),
-            ('--input INPUT_YTY', input_yty),
-            ('--output OUT_SNP', gsdir.str.cat(out_susie_snp.values)),
-            ('--output OUT_CRED', gsdir.str.cat(out_susie_cred.values)),
-            ('--output OUT_LOG', gsdir.str.cat(out_susie_log.values)),
-            ('--output OUT_RDS', gsdir.str.cat(out_susie_rds.values)),
-            ('--env N_SAMPLES', n_samples),
-            ('--env VAR_Y', var_y),
-            ('--env YTY', yty),
-            ('--env DOMINANT', dominant)
-        )))
-
-    if not args.no_ldstore:
-        ldstore_tasks.to_csv(prefix + '.ldstore.tasks.txt', sep='\t', index=False)
-    finemap_tasks.to_csv(prefix + '.finemap.tasks.txt', sep='\t', index=False)
-    susie_tasks.to_csv(prefix + '.susie.tasks.txt', sep='\t', index=False)
-
-
-def dsub(job_name,
-         project,
-         regions,
-         machine_type,
-         image,
-         script,
-         tasks,
-         logging,
-         preemptible=False,
-         mount=None,
-         env=None,
-         after=None,
-         dsub_shell_script=None,
-         submit_jobs=False):
-    cmd = [
-        'dsub',
-        '--provider', 'google-v2',
-        '--project', project,
-        '--regions', regions,
-        '--machine-type', machine_type,
-        '--image', image,
-        '--name', job_name,
-        '--script', script,
-        '--tasks', tasks,
-        '--logging', logging,
-        '--disk-size', '100'
-    ]
-
-    if preemptible:
-        cmd += ['--preemptible']
-    if mount is not None:
-        cmd += ['--mount', mount]
-    if env is not None:
-        if isinstance(env, str):
-            env = [env]
-        for e in env:
-            cmd += ['--env', e]
-    if after is not None:
-        cmd += ['--after', after]
-
-    logger.info("# " + job_name + " submission cmd:")
-    formatted_cmd = ' '.join(cmd).replace(' --', ' \\\n--')
-    logger.info(formatted_cmd)
-
-    if dsub_shell_script is not None:
-        with open(dsub_shell_script, 'w') as f:
-            f.write('#!/bin/bash\n')
-            f.write(formatted_cmd + '\n')
-        make_executable(dsub_shell_script)
-
-    if submit_jobs:
-        if after is None:
-            return run_command(cmd, stderr=None).strip()
-        else:
-            return run_command_bg(cmd)
-
-
-def dsub_ldstore(args, prefix, gsdir, project, regions, bgen_bucket, bgen_dirname, bgen_fname_format,
-                 submit_jobs=False):
-    return dsub(
-        'ldstore-' + prefix,
-        project=project,
-        regions=regions,
-        machine_type=args.ldstore_machine_type,
-        image=args.ldstore_image,
-        script=args.ldstore_script,
-        tasks=prefix + '.ldstore.tasks.txt',
-        dsub_shell_script=prefix + '.ldstore.dsub.sh',
-        logging=gsdir + 'logging',
-        preemptible=args.preemptible,
-        mount=bgen_bucket,
-        env=['BGEN_DIRNAME='+bgen_dirname, 'BGEN_FNAME_FORMAT='+bgen_fname_format],
-        submit_jobs=args.submit_jobs)
-
-
-def dsub_finemap(args, prefix, gsdir, project, regions, submit_jobs=False, after=None):
-    return dsub(
-        'finemap-' + prefix,
-        project=project,
-        regions=regions,
-        machine_type=args.finemap_machine_type,
-        image=args.finemap_image,
-        script=args.finemap_script,
-        tasks=prefix + '.finemap.tasks.txt',
-        dsub_shell_script=prefix + '.finemap.dsub.sh',
-        logging=gsdir + 'logging',
-        preemptible=args.preemptible,
-        after=after,
-        submit_jobs=args.submit_jobs)
-
-
-def dsub_susie(args, prefix, gsdir, project, regions, submit_jobs=False, after=None):
-    return dsub(
-        'susie-' + prefix,
-        project=project,
-        regions=regions,
-        machine_type=args.susie_machine_type,
-        image=args.susie_image,
-        script=args.susie_script,
-        tasks=prefix + '.susie.tasks.txt',
-        dsub_shell_script=prefix + '.susie.dsub.sh',
-        logging=gsdir + 'logging',
-        preemptible=args.preemptible,
-        after=after,
-        submit_jobs=args.submit_jobs)
-
-
 def main(args):
     # remove x chromosome from the key unless --x-chromosome is specified
     if not args.x_chromosome:
@@ -484,10 +280,9 @@ def main(args):
     var_id_chr_map = {}
 
     if args.set_variant_id_map_chr:
-        var_id_chr_map = { m[0].strip():m[1].strip() for m in map(lambda x: x.split("="), args.set_variant_id_map_chr.split(",")) }
+        var_id_chr_map = { m[0].strip():m[1].strip() for m in [x.split("=") for x in args.set_variant_id_map_chr.split(",")] }
 
-    sumstats = map(
-        lambda (i, x): read_sumstats(
+    sumstats = [read_sumstats(
             x,
             rsid_col=args.rsid_col[i],
             chromosome_col=args.chromosome_col[i],
@@ -508,7 +303,7 @@ def main(args):
             grch38=args.grch38,
             scale_se_by_pval=args.scale_se_by_pval[i],
             extra_cols=args.extra_cols
-        ), enumerate(args.sumstats))
+        ) for i, x in enumerate(args.sumstats)]
 
 
     if args.bed is None:
@@ -551,7 +346,7 @@ def main(args):
     chromsizes = pd.DataFrame.from_dict(
         pybedtools.chromsizes(build), orient='index',
         columns=['start', 'end']).loc[['chr' + CHROM_MAPPING_STR[str(i)] for i in range(1, max_chrom_int + 1)], :]
-    chromsizes['chromosome'] = range(1, max_chrom_int+1)
+    chromsizes['chromosome'] = list(range(1, max_chrom_int+1))
     chromsizes = chromsizes[['chromosome', 'start', 'end']]
 
     unique_chroms = merged_bed.to_dataframe().iloc[0, :].unique()
@@ -567,16 +362,14 @@ def main(args):
 
     if not args.no_merge:
         # assign regions
-        sumstats = map(
-            lambda x: x.assign(region=pd.cut(x.chrpos, boundaries, right=False, labels=False, include_lowest=True)),
-            sumstats)
+        sumstats = [x.assign(region=pd.cut(x.chrpos, boundaries, right=False, labels=False, include_lowest=True)) for x in sumstats]
         if not args.null_region:
             sig_regions = pd.cut(convert_chrpos(merged_bed.chrom, merged_bed.start),
                                  boundaries,
                                  right=False,
                                  labels=False,
                                  include_lowest=True).unique()
-            sumstats = map(lambda x: x[x.region.isin(sig_regions)], sumstats)
+            sumstats = [x[x.region.isin(sig_regions)] for x in sumstats]
         else:
             merged_bed = all_bed
 
@@ -634,38 +427,6 @@ def main(args):
             input_z = pd.Series(input_z)
             region_size = pd.Series(region_size)
 
-        if not args.no_upload:
-            logger.info("Uploading z files")
-            if args.bed is None:
-                bed_and_leadsnps = [args.out + '.bed', args.out + '.lead_snps.txt']
-            else:
-                bed_and_leadsnps = [args.bed[0]]
-            run_command(['gsutil', '-m', 'cp'] + bed_and_leadsnps + input_z.values.tolist() + [args.gsdir[i]])
-
-        if args.wdl:
-            logger.info("--wdl is specified. No task/dsub files were output.")
-            return
-
-        logger.info("Writing task files")
-        output_tasks(args, input_z, region_size, args.prefix[i], args.gsdir[i], args.localdir[i], args.input_samples[i],
-                     args.input_incl_samples[i], args.n_samples[i], args.var_y[i], args.load_yty[i], args.yty[i],
-                     args.phi[i])
-
-        if args.localdir[i].startswith('gs://'):
-            if not args.no_ldstore:
-                job_id = dsub_ldstore(args, args.prefix[i], args.gsdir[i], args.project[i], args.regions[i],
-                                      args.bgen_bucket[i], args.bgen_dirname[i], args.bgen_fname_format[i],
-                                      args.submit_jobs)
-            else:
-                job_id = None
-            dsub_finemap(
-                args, args.prefix[i], args.gsdir[i], args.project[i], args.regions[i], args.submit_jobs, after=job_id)
-            dsub_susie(
-                args, args.prefix[i], args.gsdir[i], args.project[i], args.regions[i], args.submit_jobs, after=job_id)
-        else:
-            dsub_finemap(args, args.prefix[i], args.gsdir[i], args.project[i], args.regions[i], submit_jobs=False)
-            dsub_susie(args, args.prefix[i], args.gsdir[i], args.project[i], args.regions[i], submit_jobs=False)
-
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
@@ -694,10 +455,8 @@ if __name__ == '__main__':
                         help='Ratio to recursively shrink a flanking window size')
     parser.add_argument('--no-merge', action='store_true', help='Do not merge overlapped regions')
     parser.add_argument('--null-region', action='store_true')
-    parser.add_argument('--no-upload', action='store_true')
     parser.add_argument('--no-output', action='store_true')
     parser.add_argument('--no-ldstore', action='store_true')
-    parser.add_argument('--submit-jobs', action='store_true')
     parser.add_argument('--exclude-MHC', action='store_true')
     parser.add_argument('--MHC-start', type=int, default=25e6)
     parser.add_argument('--MHC-end', type=int, default=34e6)
@@ -726,7 +485,7 @@ if __name__ == '__main__':
     parser.add_argument('--se-col', type=str, default='se')
     parser.add_argument('--flip-col', type=str, default='flip')
     parser.add_argument('--p-col', '-p', type=str, default='p')
-    parser.add_argument('--delimiter', type=str, default='\s+', help='Delimiter of sumstats')
+    parser.add_argument('--delimiter', type=str, default='WHITESPACE', help='Delimiter of sumstats')
     parser.add_argument('--extra-cols', type=str, nargs='+', help='Extra columns to output in .z files.')
     parser.add_argument('--recontig', action='store_true', default=False)
     parser.add_argument('--set-variant-id', action='store_true', default=False)
@@ -746,51 +505,8 @@ if __name__ == '__main__':
 
     JSON_PARAMS = [
         'rsid_col', 'chromosome_col', 'position_col', 'allele1_col', 'allele2_col', 'maf_col', 'freq_col', 'beta_col',
-        'se_col', 'flip_col', 'p_col', 'delimiter', 'recontig', 'set_variant_id', 'flip_beta', 'scale_se_by_pval', 'project',
-        'regions', 'bgen_bucket', 'bgen_dirname', 'bgen_fname_format', 'var_y', 'load_yty', 'yty', 'phi'
+        'se_col', 'flip_col', 'p_col', 'delimiter', 'recontig', 'set_variant_id', 'flip_beta', 'scale_se_by_pval'
     ]
-
-    # task parameters (usually set by json)
-    parser.add_argument('--gsdir', type=str, nargs='+')
-    parser.add_argument('--localdir', type=str, nargs='+')
-    parser.add_argument('--input-samples', type=str, nargs='+')
-    parser.add_argument('--input-incl-samples', type=str, nargs='+')
-    parser.add_argument('--n-samples', '-n', type=int, nargs='+')
-    parser.add_argument('--var-y', type=float, nargs='+', default=None)
-    parser.add_argument('--load-yty', action='store_true', default=False)
-    parser.add_argument('--yty', type=float, nargs='+', default=None)
-    parser.add_argument('--phi', type=float, nargs='+', default=None)
-
-    # dsub settings
-    parser.add_argument('--project', type=str, default='encode-uk-biobank-restrict', nargs='+')
-    parser.add_argument('--regions', type=str, default='us-central1', nargs='+')
-    parser.add_argument('--preemptible', action='store_true')
-    parser.add_argument('--bgen-bucket',
-                        type=str,
-                        default='BGEN_BUCKET=gs://fc-7d5088b4-7673-45b5-95c2-17ae00a04183',
-                        nargs='+')
-    parser.add_argument('--bgen-dirname', type=str, default='imputed', nargs='+')
-    parser.add_argument('--bgen-fname-format', type=str, default='ukb_imp_chr{}_v3.bgen', nargs='+')
-    parser.add_argument('--ldstore-machine-type', type=str, default='n1-standard-16')
-    parser.add_argument('--ldstore-image', type=str, default='gcr.io/encode-uk-biobank-restrict/finemap-suite:0.6')
-    parser.add_argument(
-        '--ldstore-script',
-        type=str,
-        default='/humgen/atgu1/fs03/mkanai/workspace/201901_XFinemap/xfinemap/docker/ldstore/dsub_ldstore.py')
-    parser.add_argument('--finemap-machine-type', type=str, default='n1-highmem-4')
-    parser.add_argument('--finemap-image', type=str, default='gcr.io/encode-uk-biobank-restrict/finemap:1.3.1')
-    parser.add_argument(
-        '--finemap-script',
-        type=str,
-        default='/humgen/atgu1/fs03/mkanai/workspace/201901_XFinemap/xfinemap/docker/finemap/dsub_finemap.py')
-    parser.add_argument('--susie-machine-type', type=str, default='n1-highmem-16')
-    parser.add_argument('--susie-image',
-                        type=str,
-                        default='gcr.io/encode-uk-biobank-restrict/susie:0.8.1.0521.save-rds.yty.dominant')
-    parser.add_argument(
-        '--susie-script',
-        type=str,
-        default='/humgen/atgu1/fs03/mkanai/workspace/201901_XFinemap/xfinemap/docker/susie/dsub_susie.py')
 
     args = parser.parse_args()
 
@@ -807,31 +523,23 @@ if __name__ == '__main__':
 
         def update_json_dict(file):
             d = json.load(open(file))
-            if 'localdir' not in d and 'gsdir' in d:
-                d.update({'localdir': d['gsdir']})
-            for k, v in d.items():
+            for k, v in list(d.items()):
                 json_dict[k].append(v)
-            for k in np.setdiff1d(JSON_PARAMS, d.keys()):
+            for k in np.setdiff1d(JSON_PARAMS, list(d.keys())):
                 json_dict[k].append(defaults[k])
 
-        map(lambda x: update_json_dict(x), args.json)
+        list(map(lambda x: update_json_dict(x), args.json))
         args_dict.update(json_dict)
 
     if args.prefix is None:
-        args.prefix = map(
-            lambda x: os.path.splitext(os.path.basename(x if not x.endswith('gz') else os.path.splitext(x)[0]))[0],
-            args.sumstats)
-    if args.gsdir is not None:
-        args.gsdir = map(lambda x: x + '/' if not x.endswith('/') else x, args.gsdir)
-    if args.localdir is not None:
-        args.localdir = map(lambda x: x + '/' if not x.endswith('/') else x, args.localdir)
+        args.prefix = [os.path.splitext(os.path.basename(x if not x.endswith('gz') else os.path.splitext(x)[0]))[0] for x in args.sumstats]
 
     if args.bed is not None and not isinstance(args.bed, list):
         args.bed = [args.bed] * n_sumstats
 
     args_dict.update({
         k: [v] * n_sumstats if not (isinstance(v, list)) else v
-        for k, v in args_dict.items()
+        for k, v in list(args_dict.items())
         if k in JSON_PARAMS
     })
 
@@ -852,18 +560,9 @@ if __name__ == '__main__':
                     '--delimiter %s does not seem a standard delimiter nor match any of magic words (%s).'.format(
                         args.delimiter, ','.join(MAGIC_WORDS)))
                 return delimiter
-        args.delimiter = map(lambda x: update_delimiter(x), args.delimiter)
+        args.delimiter = [update_delimiter(x) for x in args.delimiter]
     else:
         raise ValueError('--delimiter should be specified.')
-
-    if not args.no_upload:
-        len_check_params = [args.gsdir]
-        if not args.wdl:
-            len_check_params += [args.localdir, args.input_samples, args.input_incl_samples, args.n_samples, args.var_y]
-        if args.gsdir is None:
-            raise ValueError("--gsdir should be specified.")
-        if not np.all(n_sumstats == np.array(map(len, len_check_params))):
-            raise ValueError("Different length.")
 
     if args.null_region and args.no_merge:
         raise ValueError("--null-region and --no-merge cannot be specified at the same time.")
@@ -874,8 +573,6 @@ if __name__ == '__main__':
         else:
             raise ValueError("--out should be specified when # sumstats > 1.")
 
-    if args.submit_jobs and 'GOOGLE_APPLICATION_CREDENTIALS' not in os.environ:
-        raise RuntimeError("GOOGLE_APPLICATION_CREDENTIALS should be set in the environment variables.")
 
     # logging
     fhandler = FileHandler(args.out + '.log', 'w+')
@@ -884,7 +581,7 @@ if __name__ == '__main__':
 
     # https://github.com/bulik/ldsc/blob/master/ldsc.py#L589
     defaults = vars(parser.parse_args(''))
-    non_defaults = [x for x in args_dict.keys() if args_dict[x] != defaults[x]]
+    non_defaults = [x for x in list(args_dict.keys()) if args_dict[x] != defaults[x]]
     # non_defaults = [x for x in args_dict.keys()]
     call = "Call: \n"
     call += './{}.py \\\n'.format(os.path.basename(__file__))
