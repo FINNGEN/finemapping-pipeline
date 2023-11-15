@@ -56,7 +56,7 @@ task preprocess {
             }
         }
         NR > 1 && $h[ph] != "NA" {
-            vals[$h[ph]] += 1
+            vals[$h[ph] + 0] += 1
             print $1 > ph".incl"
             if ($h[ph] != 0 && $h[ph] != 1 && !err) {
                 print "Phenotype:"ph" seems a quantitative trait. Setting var_y = 1 and prior_std = 0.05." > "/dev/stderr"
