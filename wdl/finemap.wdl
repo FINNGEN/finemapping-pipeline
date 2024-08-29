@@ -82,45 +82,44 @@ task preprocess {
 
         wc -l ${pheno}.incl | cut -f1 -d' ' > n_samples.txt
 
-        #if custom region list, use that
-        #else, normal region selection
-        else
-            make_finemap_inputs.py \
-                --sumstats ${sumstats} \
-                --rsid-col "${rsid_col}" \
-                --chromosome-col "${chromosome_col}" \
-                --position-col "${position_col}" \
-                --allele1-col "${allele1_col}" \
-                --allele2-col "${allele2_col}" \
-                --freq-col "${freq_col}" \
-                --beta-col "${beta_col}" \
-                --se-col "${se_col}" \
-                --p-col "${p_col}" \
-                --delimiter "${delimiter}" \
-                --grch38 \
-                --exclude-MHC \
-                --no-upload \
-                --prefix ${pheno} \
-                --out ${pheno} \
-                --window ${window} \
-                --max-region-width ${max_region_width} \
-                --window-shrink-ratio ${window_shrink_ratio} \
-                ${true='--scale-se-by-pval ' false=' ' scale_se_by_pval} \
-                ${true='--x-chromosome' false=' ' x_chromosome} \
-                ${true='--set-variant-id ' false=' ' set_variant_id} \
-                ${true='--set-variant-id-map-chr ' false=' ' defined(set_variant_id_map_chr)}${set_variant_id_map_chr} \
-                --p-threshold ${p_threshold} \
-                ${true='--min-p-threshold ' false='' defined(minimum_pval)}${minimum_pval} \
-                --wdl \
-                ${true='--bed ' false='' defined(manual_regions)}${manual_regions}
+        make_finemap_inputs.py \
+            --sumstats ${sumstats} \
+            --rsid-col "${rsid_col}" \
+            --chromosome-col "${chromosome_col}" \
+            --position-col "${position_col}" \
+            --allele1-col "${allele1_col}" \
+            --allele2-col "${allele2_col}" \
+            --freq-col "${freq_col}" \
+            --beta-col "${beta_col}" \
+            --se-col "${se_col}" \
+            --p-col "${p_col}" \
+            --delimiter "${delimiter}" \
+            --grch38 \
+            --exclude-MHC \
+            --prefix ${pheno} \
+            --out ${pheno} \
+            --window ${window} \
+            --max-region-width ${max_region_width} \
+            --window-shrink-ratio ${window_shrink_ratio} \
+            ${true='--scale-se-by-pval ' false=' ' scale_se_by_pval} \
+            ${true='--x-chromosome' false=' ' x_chromosome} \
+            ${true='--set-variant-id ' false=' ' set_variant_id} \
+            ${true='--set-variant-id-map-chr ' false=' ' defined(set_variant_id_map_chr)}${set_variant_id_map_chr} \
+            --p-threshold ${p_threshold} \
+            ${true='--min-p-threshold ' false='' defined(minimum_pval)}${minimum_pval} \
+            --wdl \
+            ${true='--bed ' false='' defined(manual_regions)}${manual_regions}
 
-            res=`cat ${pheno}_had_results`
-
-            if [ "$res" == "False" ]; then
-                touch ${pheno}".z"
-                touch ${pheno}".lead_snps.txt"
-                touch ${pheno}".bed"
-            fi
+        res=`cat ${pheno}_had_results`
+        # custom bed region selection does not create lead snps file.
+        if ${true='true' false='false' defined(manual_regions)}; then
+            touch ${pheno}".lead_snps.txt"
+            cp ${manual_regions } ${pheno}".bed"
+        fi
+        if [ "$res" == "False" ]; then
+            touch ${pheno}".z"
+            touch ${pheno}".lead_snps.txt"
+            touch ${pheno}".bed"
         fi
     >>>
 

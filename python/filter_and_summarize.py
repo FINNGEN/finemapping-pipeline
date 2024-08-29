@@ -66,7 +66,7 @@ def get_variant_annots( regions, annot_file, outcols=["gene_most_severe","most_s
     va = {}
     regions_file.flush()
 
-    p = Popen(["tabix","-R",regions_file.name,annot_file ],stdout=PIPE, stderr=PIPE)
+    p = Popen(["tabix","-R",regions_file.name,annot_file ],stdout=PIPE, stderr=PIPE,encoding="utf-8")
     for v in p.stdout:
         vd = v.strip().split("\t")
         varid="{}:{}:{}:{}".format( vd[hi[cpra[0]]], vd[hi[cpra[1]]], vd[hi[cpra[2]]], vd[hi[cpra[3]]])
