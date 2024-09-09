@@ -152,6 +152,7 @@ task filter {
     File variant_file
     File sumstat
     String base = basename(sumstat,".gz")
+    String docker
 
     command <<<
 
@@ -192,7 +193,7 @@ task filter {
 
     runtime {
 
-        docker: "eu.gcr.io/finngen-refinery-dev/bioinformatics:0.7"
+        docker: "${docker}"
         cpu: 1
         # 40M variants in variant_file to look up takes about 4G
         memory: "4 GB"
@@ -218,7 +219,7 @@ workflow finemap {
 
         File sumstats = sub(sumstats_pattern,"\\{PHENO\\}",pheno)
         call filter{
-            input: sumstat = sumstats
+            input: sumstat = sumstats,docker=docker
         }
 
         call preprocess {
