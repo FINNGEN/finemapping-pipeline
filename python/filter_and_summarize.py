@@ -1,4 +1,4 @@
-#!/usr/bin/env python2
+#!/usr/bin/env python3
 import argparse
 from logging import getLogger, StreamHandler, FileHandler, Formatter, DEBUG
 from subprocess import Popen,PIPE, check_output
@@ -66,7 +66,7 @@ def get_variant_annots( regions, annot_file, outcols=["gene_most_severe","most_s
     va = {}
     regions_file.flush()
 
-    p = Popen(["tabix","-R",regions_file.name,annot_file ],stdout=PIPE, stderr=PIPE)
+    p = Popen(["tabix","-R",regions_file.name,annot_file ],stdout=PIPE, stderr=PIPE,encoding="utf-8")
     for v in p.stdout:
         vd = v.strip().split("\t")
         varid="{}:{}:{}:{}".format( vd[hi[cpra[0]]], vd[hi[cpra[1]]], vd[hi[cpra[2]]], vd[hi[cpra[3]]])
@@ -134,7 +134,7 @@ if __name__ == '__main__':
 
     regions_of_cs=[]
     split_re = re.compile('[:-]')
-    for cs_id, csdef in creds[1].iteritems():
+    for cs_id, csdef in creds[1].items():
         comp_col = args.pip_column if csdef.good_cs else "p"
         def smaller(a,b):
              return a is None or operator.lt(b,a)
@@ -216,7 +216,7 @@ if __name__ == '__main__':
     with open(args.outprefix + ".cred.summary.tsv", mode='wt') as sumfile:
         header = sum_snp_cols if args.cs_sum_snp_cols_header is None else args.cs_sum_snp_cols_header.split(",")
         sumfile.write( "\t".join(creds[0]) + "\t" + "\t".join( header + var_annot_cols ) + "\n" )
-        for cs_id, rep in best_vars.iteritems():
+        for cs_id, rep in best_vars.items():
             orig_cs_dat = creds[1][cs_id]
             varid = rep.best_row[hi["v"]]
             va = var_annot.get( varid, ["NA"] * len(var_annot_cols))

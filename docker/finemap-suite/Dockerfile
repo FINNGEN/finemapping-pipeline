@@ -1,15 +1,16 @@
-FROM google/cloud-sdk:slim
-# FROM ubuntu:18.04
+FROM ubuntu:22.04
+#FROM google/cloud-sdk:slim
 LABEL maintainer="mkanai@broadinstitute.org"
 
 ENV LANG=C.UTF-8 LC_ALL=C.UTF-8
 
+RUN apt-get update && apt-get install -y curl gnupg2 lsb-release
 # Install gcsfuse
 RUN export GCSFUSE_REPO=gcsfuse-`lsb_release -c -s` && \
     echo "deb http://packages.cloud.google.com/apt $GCSFUSE_REPO main" | tee /etc/apt/sources.list.d/gcsfuse.list && \
     curl https://packages.cloud.google.com/apt/doc/apt-key.gpg | apt-key add - && \
     apt-get update --fix-missing && \
-    apt-get install -y wget gawk make zlib1g-dev g++ libopenblas-dev gfortran bedtools python-pip gcsfuse && \
+    apt-get install -y wget gawk make zlib1g-dev g++ libopenblas-dev gfortran bedtools python3-pip gcsfuse && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
 
@@ -51,8 +52,8 @@ RUN wget --quiet http://www.christianbenner.com/finemap_${FINEMAP_VERSION}_x86_6
 # for pysam
 ENV HTSLIB_CONFIGURE_OPTIONS "--disable-bz2 --disable-lzma"
 # Add scripts
-RUN pip install --no-cache cython && \
-    pip install --no-cache numpy scipy pandas pybedtools==0.8.2
+RUN python3 -m pip install --no-cache cython && \
+    python3 -m pip install --no-cache numpy scipy pandas pybedtools==0.8.2
 ENV PYTHONPATH /home:${PYTHONPATH}
 COPY python/make_finemap_inputs.py python/filter_and_summarize.py /usr/local/bin/
 COPY python/utils.py /home/

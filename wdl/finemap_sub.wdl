@@ -20,7 +20,7 @@ task ldstore {
     Array[Float] mem_coefficients
     Int mem_ = floor(mem_coefficients[0]) + ceil(mem_coefficients[1]*snps)
     #limit to 300
-    Int mem = mem_
+    Int mem = if mem_ < 600 then mem_ else 600
     Int cpu
     Boolean enable_fuse
 
@@ -465,7 +465,7 @@ task combine {
         docker: "${docker}"
         cpu: "${cpu}"
         memory: "${mem} GB"
-        disks: "local-disk 30 HDD"
+        disks: "local-disk 200 HDD"
         zones: "${zones}"
         preemptible: 2
         noAddress: true

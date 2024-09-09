@@ -29,9 +29,9 @@ task preprocess {
     Float p_threshold
     Float? minimum_pval
     String? set_variant_id_map_chr
+    File? manual_regions
 
     command <<<
-
         catcmd="cat"
         if [[ ${phenofile} == *.gz ]] || [[ ${phenofile} == *.bgz ]]
         then
@@ -96,7 +96,6 @@ task preprocess {
             --delimiter "${delimiter}" \
             --grch38 \
             --exclude-MHC \
-            --no-upload \
             --prefix ${pheno} \
             --out ${pheno} \
             --window ${window} \
@@ -108,15 +107,20 @@ task preprocess {
             ${true='--set-variant-id-map-chr ' false=' ' defined(set_variant_id_map_chr)}${set_variant_id_map_chr} \
             --p-threshold ${p_threshold} \
             ${true='--min-p-threshold ' false='' defined(minimum_pval)}${minimum_pval} \
-            --wdl
+            --wdl \
+            ${true='--bed ' false='' defined(manual_regions)}${manual_regions}
 
-            res=`cat ${pheno}_had_results`
-
-            if [ "$res" == "False" ]; then
-                touch ${pheno}".z"
-                touch ${pheno}".lead_snps.txt"
-                touch ${pheno}".bed"
-            fi
+        res=`cat ${pheno}_had_results`
+        # custom bed region selection does not create lead snps file.
+        if ${true='true' false='false' defined(manual_regions)}; then
+            touch ${pheno}".lead_snps.txt"
+            cp ${manual_regions } ${pheno}".bed"
+        fi
+        if [ "$res" == "False" ]; then
+            touch ${pheno}".z"
+            touch ${pheno}".lead_snps.txt"
+            touch ${pheno}".bed"
+        fi
     >>>
 
     output {
@@ -148,6 +152,7 @@ task filter {
     File variant_file
     File sumstat
     String base = basename(sumstat,".gz")
+    String docker
 
     command <<<
 
@@ -188,7 +193,7 @@ task filter {
 
     runtime {
 
-        docker: "eu.gcr.io/finngen-refinery-dev/bioinformatics:0.7"
+        docker: "${docker}"
         cpu: 1
         # 40M variants in variant_file to look up takes about 4G
         memory: "4 GB"
@@ -214,7 +219,7 @@ workflow finemap {
 
         File sumstats = sub(sumstats_pattern,"\\{PHENO\\}",pheno)
         call filter{
-            input: sumstat = sumstats
+            input: sumstat = sumstats,docker=docker
         }
 
         call preprocess {
