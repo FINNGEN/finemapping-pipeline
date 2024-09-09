@@ -29,7 +29,7 @@
     "finemap.ldstore_finemap.ldstore.sample": "gs://finngen-production-library-red/finngen_R12/bgen_2.0/data/chrom/finngen_R12_1.bgen.sample",
     "finemap.ldstore_finemap.ldstore.bgen_pattern": "gs://finngen-production-library-red/finngen_R12/bgen_2.0/data/chrom/finngen_R12_{CHR}.bgen",
     "finemap.ldstore_finemap.ldstore.cpu": 16,
-    "finemap.ldstore_finemap.ldstore.enable_fuse": true,
+    "finemap.ldstore_finemap.ldstore.enable_fuse": false,
     "finemap.ldstore_finemap.ldstore.mem_coefficients": [15.0,0.006],
     "finemap.ldstore_finemap.n_causal_snps": 10,
     "finemap.ldstore_finemap.susie.min_cs_corr": 0,
