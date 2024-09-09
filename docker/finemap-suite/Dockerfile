@@ -9,8 +9,9 @@ RUN apt-get update && apt-get install -y curl gnupg2 lsb-release
 RUN export GCSFUSE_REPO=gcsfuse-`lsb_release -c -s` && \
     echo "deb http://packages.cloud.google.com/apt $GCSFUSE_REPO main" | tee /etc/apt/sources.list.d/gcsfuse.list && \
     curl https://packages.cloud.google.com/apt/doc/apt-key.gpg | apt-key add - && \
+    echo "deb [signed-by=/usr/share/keyrings/cloud.google.gpg] https://packages.cloud.google.com/apt cloud-sdk main" | tee -a /etc/apt/sources.list.d/google-cloud-sdk.list && \
     apt-get update --fix-missing && \
-    apt-get install -y wget gawk make zlib1g-dev g++ libopenblas-dev gfortran bedtools python3-pip gcsfuse && \
+    apt-get install -y wget gawk make zlib1g-dev g++ libopenblas-dev gfortran bedtools python3-pip gcsfuse google-cloud-cli && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
 
