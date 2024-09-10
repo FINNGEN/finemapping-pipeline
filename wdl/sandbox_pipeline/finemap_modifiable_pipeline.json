@@ -1,6 +1,6 @@
 {
     "finemap.zones": "europe-west1-b europe-west1-c europe-west1-d",
-    "finemap.docker": "eu.gcr.io/finngen-sandbox-v3-containers/finemap-suite:bbbf24a",
+    "finemap.docker": "eu.gcr.io/finngen-sandbox-v3-containers/finemap-suite:56205d3",
     "finemap.sumstats_pattern": "gs://path/{PHENO}.gz",
     "finemap.phenolistfile": "gs://path/phenolistfile",
     "finemap.phenotypes": "gs://finngen-production-library-red/finngen_R12/analysis_covariates/R12_COV_PHENO_V2.txt.gz",
