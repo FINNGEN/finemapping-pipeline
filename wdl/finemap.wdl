@@ -214,25 +214,29 @@ workflow finemap {
 
     Array[String] phenos = read_lines(phenolistfile)
     String? set_variant_id_map_chr
+    File? bed_regions_file
 
-    scatter (pheno in phenos) {
+    Array[String] beds = if defined(bed_regions_file) then read_lines(bed_regions_file  ) else []
 
-        File sumstats = sub(sumstats_pattern,"\\{PHENO\\}",pheno)
+    scatter (idx in range(length(phenos))) {
+
+        File sumstats = sub(sumstats_pattern,"\\{PHENO\\}",phenos[idx])
+        String? bed = if defined(bed_regions_file) then beds[idx] else bed_regions_file
         call filter{
             input: sumstat = sumstats,docker=docker
         }
 
         call preprocess {
-            input: zones=zones, docker=docker, pheno=pheno, phenofile=phenotypes,
-                sumstats=filter.out,set_variant_id_map_chr=set_variant_id_map_chr
+            input: zones=zones, docker=docker, pheno=phenos[idx], phenofile=phenotypes,
+                sumstats=filter.out,set_variant_id_map_chr=set_variant_id_map_chr,manual_regions=bed
         }
 
         if(preprocess.had_results) {
             call sub.ldstore_finemap {
-                input: zones=zones, docker=docker, pheno=pheno,
+                input: zones=zones, docker=docker, pheno=phenos[idx],
                     n_samples=preprocess.n_samples, prior_std=preprocess.prior_std, var_y=preprocess.var_y,
                     incl=preprocess.incl, zfiles=preprocess.zfiles,
-                    pheno=pheno, set_variant_id_map_chr=set_variant_id_map_chr
+                    set_variant_id_map_chr=set_variant_id_map_chr
             }
         }
     }
