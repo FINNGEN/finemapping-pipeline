@@ -221,7 +221,7 @@ workflow finemap {
     scatter (idx in range(length(phenos))) {
 
         File sumstats = sub(sumstats_pattern,"\\{PHENO\\}",phenos[idx])
-        String? bed = if defined(bed_regions_file) then beds[idx] else bed_regions_file
+        File? bed = if defined(bed_regions_file) then beds[idx] else bed_regions_file
         call filter{
             input: sumstat = sumstats,docker=docker
         }
