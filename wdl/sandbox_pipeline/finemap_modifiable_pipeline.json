@@ -25,7 +25,7 @@
     "finemap.preprocess.window_shrink_ratio": 0.9,
     "finemap.set_variant_id_map_chr":"23=X",
     "finemap.preprocess.p_threshold": 0.00000005,
-    "finemap.preprocess.manual_regions":null,
+    "finemap.bed_regions_file":null,
     "finemap.ldstore_finemap.ldstore.sample": "gs://finngen-production-library-red/finngen_R12/bgen_2.0/data/chrom/finngen_R12_1.bgen.sample",
     "finemap.ldstore_finemap.ldstore.chromosome_bgen_map":{
         "1":"gs://finngen-production-library-red/finngen_R12/bgen_2.0/data/chrom/finngen_R12_1.bgen",
