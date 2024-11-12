@@ -8,7 +8,7 @@ task ldstore {
     String prefix = basename(zfile, ".z")
     String chrom = sub(sub(prefix, pheno + "\\.chr", ""), "\\.[0-9\\-]+$", "")
     String bgenbucket = sub(sub(bgen_pattern, "^gs://", ""), "/.+$", "")
-    String mountpoint = "/cromwell_root/gcsfuse/" + bgenbucket
+    String mountpoint = bgenbucket
     String bgen = sub(sub(bgen_pattern, "\\{CHR\\}", chrom), "^gs://" + bgenbucket, mountpoint)
     String bgen_gs = sub(bgen_pattern, "\\{CHR\\}", chrom)
     File bgi = sub(bgen_pattern, "\\{CHR\\}", chrom) + ".bgi"
