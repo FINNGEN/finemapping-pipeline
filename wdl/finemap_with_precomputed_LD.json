@@ -1,0 +1,21 @@
+{
+    "finemap.zones": "us-central1-a us-central1-b us-central1-c us-east1-b us-east1-c us-east1-d",
+    "finemap.docker": "gcr.io/encode-uk-biobank-restrict/finemap-suite:1.26",
+    "finemap.zfile_list_file": "gs://ukb-diverse-pops/results/finemap/custom/EUR/E4_HYTHY_AI_STRICT_EXTRA/zfilelist.txt",
+    "finemap.n_causal_snps": 10,
+    "finemap.finemap.cpu": 8,
+    "finemap.finemap.mem": 52,
+    "finemap.susie.min_cs_corr": 0,
+    "finemap.susie.docker": "gcr.io/encode-uk-biobank-restrict/susie:0.9.1.0.894ba2f",
+    "finemap.susie.cpu": 8,
+    "finemap.susie.mem": 208,
+    "finemap.combine.cpu": 1,
+    "finemap.combine.mem": 7,
+    "finemap.filter_and_summarize.good_cred_r2": 0.25,
+    "finemap.filter_and_summarize.snp_annot_file": "gs://xfinemap/annotation/vep/pan_ukbb.most_severe.tsv.bgz",
+    "finemap.filter_and_summarize.snp_annot_file_tbi": "gs://xfinemap/annotation/vep/pan_ukbb.most_severe.tsv.bgz.tbi",
+    "finemap.filter_and_summarize.snp_annotation_fields": "most_severe,gene_most_severe",
+    "finemap.filter_and_summarize.script": "gs://xfinemap/filter_and_summarize.py",
+    "finemap.filter_and_summarize.cpu": 1,
+    "finemap.filter_and_summarize.mem": 8
+}
