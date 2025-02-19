@@ -74,10 +74,10 @@ task ldstore {
         docker: "${docker}"
         cpu: "${cpu}"
         memory: "${mem} GB"
-        disks: "local-disk 200 HDD"
+        disks: "local-disk 400 HDD"
         zones: "${zones}"
         preemptible: 2
-        noAddress: false
+        noAddress: true
     }
 }
 
@@ -531,7 +531,7 @@ task filter_and_summarize{
         docker: "${docker}"
         cpu: "${cpu}"
         memory: "${mem} GB"
-        disks: "local-disk 60 HDD"
+        disks: "local-disk 120 HDD"
         zones: "${zones}"
         preemptible: 2
         noAddress: true
