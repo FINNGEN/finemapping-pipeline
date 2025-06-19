@@ -74,9 +74,9 @@ task ldstore {
         docker: "${docker}"
         cpu: "${cpu}"
         memory: "${mem} GB"
-        disks: "local-disk 500 SSD"
+        disks: "local-disk 500 HDD"
         zones: "${zones}"
-        preemptible: 0
+        preemptible: 2
         noAddress: true
     }
 }
@@ -166,9 +166,9 @@ task finemap {
         docker: "${docker}"
         cpu: "${cpu}"
         memory: "${mem} GB"
-        disks: "local-disk 100 SSD"
+        disks: "local-disk 100 HDD"
         zones: "${zones}"
-        preemptible: 0
+        preemptible: 2
         noAddress: true
     }
 }
@@ -234,9 +234,9 @@ task susie {
         docker: "${docker}"
         cpu: "${cpu}"
         memory: "${mem} GB"
-        disks: "local-disk 200 SSD"
+        disks: "local-disk 100 HDD"
         zones: "${zones}"
-        preemptible: 0
+        preemptible: 2
         noAddress: true
     }
 }
@@ -533,9 +533,9 @@ task filter_and_summarize{
         docker: "${docker}"
         cpu: "${cpu}"
         memory: "${mem} GB"
-        disks: "local-disk 120 SSD"
+        disks: "local-disk 120 HDD"
         zones: "${zones}"
-        preemptible: 0
+        preemptible: 2
         noAddress: true
     }
 }
