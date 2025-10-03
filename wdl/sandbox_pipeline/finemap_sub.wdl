@@ -19,8 +19,8 @@ task ldstore {
     Float snps = length(read_lines(zfile))
     Array[Float] mem_coefficients
     Int mem_ = floor(mem_coefficients[0]) + ceil(mem_coefficients[1]*snps)
-    #limit to 300
-    Int mem = if mem_ < 600 then mem_ else 600
+    #limit to 624 (N1 machine type max)
+    Int mem = if mem_ < 624 then mem_ else 624
     Int cpu
     Boolean enable_fuse
 
@@ -74,7 +74,7 @@ task ldstore {
         docker: "${docker}"
         cpu: "${cpu}"
         memory: "${mem} GB"
-        disks: "local-disk 400 HDD"
+        disks: "local-disk 500 HDD"
         zones: "${zones}"
         preemptible: 2
         noAddress: true
@@ -188,13 +188,15 @@ task susie {
     String docker
     Int cpu=8
     Int snps = length(read_lines(zfile))
-    Array[Float] memory_values# =  [30,70,120,220,360]
-    Array[Float] snp_thresholds# = [15000,30000,40000,60000]
+    Array[Float] memory_values# =  [30,70,120,220,360,480,800]
+    Array[Float] snp_thresholds# = [15000,30000,40000,60000,80000,120000]
     Int mem= if snps < snp_thresholds[0] then floor(memory_values[0]) else
-        if snps < snp_thresholds[1] then ceil( (memory_values[0] +  ((snps - snp_thresholds[0] )/(snp_thresholds[1]-snp_thresholds[0] )) * (memory_values[1]-memory_values[0])) ) else
-        if snps < snp_thresholds[2] then ceil( (memory_values[1] +  ((snps - snp_thresholds[1] )/(snp_thresholds[2] -snp_thresholds[1])) * (memory_values[2]-memory_values[1])) ) else 
-        if snps < snp_thresholds[3] then floor( (memory_values[2] +  ((snps - snp_thresholds[2] )/(snp_thresholds[3]-snp_thresholds[2]) ) * (memory_values[3]-memory_values[2])) ) else 
-        floor(memory_values[4])
+        if snps < snp_thresholds[1] then ceil( (memory_values[0] + ((snps - snp_thresholds[0] ) / (snp_thresholds[1] - snp_thresholds[0])) * (memory_values[1] - memory_values[0])) ) else
+        if snps < snp_thresholds[2] then ceil( (memory_values[1] + ((snps - snp_thresholds[1] ) / (snp_thresholds[2] - snp_thresholds[1])) * (memory_values[2] - memory_values[1])) ) else 
+        if snps < snp_thresholds[3] then ceil( (memory_values[2] + ((snps - snp_thresholds[2] ) / (snp_thresholds[3] - snp_thresholds[2])) * (memory_values[3] - memory_values[2])) ) else
+        if snps < snp_thresholds[4] then ceil( (memory_values[3] + ((snps - snp_thresholds[3] ) / (snp_thresholds[4] - snp_thresholds[3])) * (memory_values[4] - memory_values[3])) ) else
+        if snps < snp_thresholds[5] then ceil( (memory_values[4] + ((snps - snp_thresholds[4] ) / (snp_thresholds[5] - snp_thresholds[4])) * (memory_values[5] - memory_values[4])) ) else
+        floor(memory_values[6])
     Float min_cs_corr
 
     command <<<

@@ -153,6 +153,10 @@ task filter {
     File sumstat
     String base = basename(sumstat,".gz")
     String docker
+    String chromosome_col
+    String position_col
+    String allele1_col
+    String allele2_col
 
     command <<<
 
@@ -162,6 +166,10 @@ task filter {
         import gzip
         variant_file="${variant_file}"
         sumstat="${sumstat}"
+        chromosome_col="${chromosome_col}"
+        position_col="${position_col}"
+        allele1_col="${allele1_col}"
+        allele2_col="${allele2_col}"
         variants = {}
         with gzip.open(variant_file, 'rt') as f:
             for line in f:
@@ -171,13 +179,20 @@ task filter {
         print("${base}",file=sys.stderr)
         with gzip.open(sumstat, 'rt') as f:
             l = f.readline().strip()
+            h = l.split('\t')
+            chromosome_col_idx = h.index(chromosome_col)
+            position_col_idx = h.index(position_col)
+            allele1_col_idx = h.index(allele1_col)
+            allele2_col_idx = h.index(allele2_col)
+            if not l.startswith("#"):
+                l = "#" + l
             print(l)
             print(l,file=sys.stderr)
             for line in f:
                 line = line.strip()
                 s = line.split('\t')
-                chr = s[0].replace('chr', '').replace('X', '23').replace('Y', '24').replace('MT', '25').replace('M', '25')
-                id = chr + ':' + s[1] + ':' + s[2] + ':' + s[3]
+                chr = s[chromosome_col_idx].replace('chr', '').replace('X', '23').replace('Y', '24').replace('MT', '25').replace('M', '25')
+                id = chr + ':' + s[position_col_idx] + ':' + s[allele1_col_idx] + ':' + s[allele2_col_idx]
                 if id in variants:
                     print(line)
         EOF
@@ -211,6 +226,14 @@ workflow finemap {
     String sumstats_pattern
     File phenolistfile
     File phenotypes
+    String chromosome_col
+    String position_col
+    String allele1_col
+    String allele2_col
+    String freq_col
+    String beta_col
+    String se_col
+    String p_col
 
     Array[String] phenos = read_lines(phenolistfile)
     String? set_variant_id_map_chr
@@ -223,12 +246,17 @@ workflow finemap {
         File sumstats = sub(sumstats_pattern,"\\{PHENO\\}",phenos[idx])
         File? bed = if defined(bed_regions_file) then beds[idx] else bed_regions_file
         call filter{
-            input: sumstat = sumstats,docker=docker
+            input: sumstat = sumstats,docker=docker,
+                chromosome_col=chromosome_col, position_col=position_col,
+                allele1_col=allele1_col, allele2_col=allele2_col
         }
 
         call preprocess {
             input: zones=zones, docker=docker, pheno=phenos[idx], phenofile=phenotypes,
-                sumstats=filter.out,set_variant_id_map_chr=set_variant_id_map_chr,manual_regions=bed
+                sumstats=filter.out,set_variant_id_map_chr=set_variant_id_map_chr,manual_regions=bed,
+                chromosome_col=chromosome_col, position_col=position_col,
+                allele1_col=allele1_col, allele2_col=allele2_col,
+                freq_col=freq_col, beta_col=beta_col, se_col=se_col, p_col=p_col
         }
 
         if(preprocess.had_results) {
