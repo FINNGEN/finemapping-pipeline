@@ -1,0 +1,6 @@
+{
+    "workflow_failure_mode": "ContinueWhilePossible",
+    "google_labels":{
+        "product":"core-analysis-r14"
+    }
+}
