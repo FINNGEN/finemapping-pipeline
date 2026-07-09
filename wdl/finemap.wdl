@@ -238,8 +238,6 @@ workflow finemap {
     Array[String] phenos = read_lines(phenolistfile)
     String? set_variant_id_map_chr
     File? bed_regions_file
-    String? bgen_pattern
-    Map[String,String]? chromosome_bgen_map
 
     Array[String] beds = if defined(bed_regions_file) then read_lines(bed_regions_file  ) else []
 
@@ -266,8 +264,7 @@ workflow finemap {
                 input: zones=zones, docker=docker, pheno=phenos[idx],
                     n_samples=preprocess.n_samples, prior_std=preprocess.prior_std, var_y=preprocess.var_y,
                     incl=preprocess.incl, zfiles=preprocess.zfiles,
-                    set_variant_id_map_chr=set_variant_id_map_chr,
-                    bgen_pattern=bgen_pattern, chromosome_bgen_map=chromosome_bgen_map
+                    set_variant_id_map_chr=set_variant_id_map_chr
             }
         }
     }
