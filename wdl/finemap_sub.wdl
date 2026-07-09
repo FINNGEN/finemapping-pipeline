@@ -1,17 +1,20 @@
 task ldstore {
     String pheno
-    String bgen_pattern
+    String? bgen_pattern
+    Map[String,String]? chromosome_bgen_map
     File zfile
     File sample
     Int n_samples
     File incl
     String prefix = basename(zfile, ".z")
     String chrom = sub(sub(prefix, pheno + "\\.chr", ""), "\\.[0-9\\-]+$", "")
-    String bgenbucket = sub(sub(bgen_pattern, "^gs://", ""), "/.+$", "")
+
+    # Use chromosome_bgen_map if provided, otherwise fall back to bgen_pattern
+    String bgen_gs = if defined(chromosome_bgen_map) then chromosome_bgen_map[chrom] else sub(bgen_pattern, "\\{CHR\\}", chrom)
+    String bgenbucket = sub(sub(bgen_gs, "^gs://", ""), "/.+$", "")
     String mountpoint = bgenbucket
-    String bgen = sub(sub(bgen_pattern, "\\{CHR\\}", chrom), "^gs://" + bgenbucket, mountpoint)
-    String bgen_gs = sub(bgen_pattern, "\\{CHR\\}", chrom)
-    File bgi = sub(bgen_pattern, "\\{CHR\\}", chrom) + ".bgi"
+    String bgen = sub(bgen_gs, "^gs://" + bgenbucket, mountpoint)
+    File bgi = bgen_gs + ".bgi"
     String master = prefix + ".master"
     String n_samples_file = prefix + ".n_samples.txt"
     String zones
@@ -19,8 +22,8 @@ task ldstore {
     Float snps = length(read_lines(zfile))
     Array[Float] mem_coefficients
     Int mem_ = floor(mem_coefficients[0]) + ceil(mem_coefficients[1]*snps)
-    #limit to 300
-    Int mem = if mem_ < 600 then mem_ else 600
+    # Remove memory limit as per requirements
+    Int mem = mem_
     Int cpu
     Boolean enable_fuse
 
@@ -176,7 +179,7 @@ task finemap {
 
 task susie {
     #constants
-    
+
     Int n_samples
     Int n_causal_snps
     Float var_y
@@ -192,8 +195,8 @@ task susie {
     Array[Float] snp_thresholds# = [15000,30000,40000,60000]
     Int mem= if snps < snp_thresholds[0] then floor(memory_values[0]) else
         if snps < snp_thresholds[1] then ceil( (memory_values[0] +  ((snps - snp_thresholds[0] )/(snp_thresholds[1]-snp_thresholds[0] )) * (memory_values[1]-memory_values[0])) ) else
-        if snps < snp_thresholds[2] then ceil( (memory_values[1] +  ((snps - snp_thresholds[1] )/(snp_thresholds[2] -snp_thresholds[1])) * (memory_values[2]-memory_values[1])) ) else 
-        if snps < snp_thresholds[3] then floor( (memory_values[2] +  ((snps - snp_thresholds[2] )/(snp_thresholds[3]-snp_thresholds[2]) ) * (memory_values[3]-memory_values[2])) ) else 
+        if snps < snp_thresholds[2] then ceil( (memory_values[1] +  ((snps - snp_thresholds[1] )/(snp_thresholds[2] -snp_thresholds[1])) * (memory_values[2]-memory_values[1])) ) else
+        if snps < snp_thresholds[3] then floor( (memory_values[2] +  ((snps - snp_thresholds[2] )/(snp_thresholds[3]-snp_thresholds[2]) ) * (memory_values[3]-memory_values[2])) ) else
         floor(memory_values[4])
     Float min_cs_corr
 
@@ -252,8 +255,8 @@ task combine {
     Array[File] susie_cred_99
     String zones
     String docker
-    Int cpu
-    Int mem
+    Int cpu = 1
+    Int mem = 6
 
     command <<<
         set -eux
@@ -465,7 +468,7 @@ task combine {
         docker: "${docker}"
         cpu: "${cpu}"
         memory: "${mem} GB"
-        disks: "local-disk 200 HDD"
+        disks: "local-disk 30 HDD"
         zones: "${zones}"
         preemptible: 2
         noAddress: true
@@ -476,16 +479,16 @@ task combine {
 task filter_and_summarize{
     String zones
     String docker
-    Int cpu
-    Int mem
+    Int cpu = 1
+    Int mem = 24
     String pheno
     File susie_snps
     File susie_snps_tbi
     File susie_cred
     File susie_cred_99
-    File? snp_annot_file
-    File? snp_annot_file_tbi
-    String? snp_annotation_fields
+    File? snp_annot_file = "gs://finngen-production-library-green/finngen_R13/finngen_R13_analysis_data/annotations/R13_annotated_variants_v0.gz"
+    File? snp_annot_file_tbi = snp_annot_file+".tbi"
+    String? snp_annotation_fields= "most_severe,gene_most_severe"
     String? set_variant_id_map_chr
     Float good_cred_r2
 
@@ -551,11 +554,14 @@ workflow ldstore_finemap {
     Array[File] zfiles
 
     String? set_variant_id_map_chr
+    String? bgen_pattern
+    Map[String,String]? chromosome_bgen_map
 
     scatter (zfile in zfiles) {
 
         call ldstore {
-            input: zones=zones, docker=docker, pheno=pheno, incl=incl, n_samples=n_samples, zfile=zfile
+            input: zones=zones, docker=docker, pheno=pheno, incl=incl, n_samples=n_samples, zfile=zfile,
+                bgen_pattern=bgen_pattern, chromosome_bgen_map=chromosome_bgen_map
         }
 
         call finemap {
